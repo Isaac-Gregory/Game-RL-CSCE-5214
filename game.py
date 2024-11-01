@@ -1,6 +1,7 @@
 import numpy as np
 import argparse
 import sys
+import agent
 
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
@@ -73,27 +74,42 @@ class Board:
     
     # Returns True if the gameboard has been completely filled
     def is_full(self):
-        return all(self.board.available_slot_in_col(col) is None for col in range(7))
+        return all(self.available_slot_in_col(col) is None for col in range(7))
+    
 
 # Contains the game logic for Connect 4.
 class Connect4:
 
-    def __init__(self, player_symbol='o', opponent='agent', starting_player='o', headless=False):
-        self.headless = headless                                        # Decides whether to print board
-        self.board = Board(headless=self.headless)                      # Sets up board
-        self.player_symbol = player_symbol                              # Sets the first player's symbol
-        self.opponent_symbol = 'x' if player_symbol == 'o' else 'o'     # Sets the second player's symbol
-        self.current_player = starting_player  # 'o' or 'x'             # Sets who starts (Ex. 'o' or 'x')
-        self.winner = None                                              # Stores the winning player's symbol for reference
-        self.game_over = False                                          # Boolean for tracking if the game ended
-        self.opponent = opponent  # 'agent' or 'human'                  # Setting up the second player (Ex. 'agent' or 'human')
+    def __init__(self, player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
+        self.player1_symbol = player1_symbol            # Sets the first player's symbol
+        self.player2_symbol = player2_symbol            # Sets the second player's symbol
+        self.headless = headless                        # Decides whether to print board
+        self.board = Board(headless=self.headless)      # Sets up board
+        self.winner = None                              # Stores the winning player's symbol for reference
+        self.game_over = False                          # Boolean for tracking if the game ended
+        self.starting_player = starting_player          # Storing the first player for use in resetting
+
+        # Sets the starting symbol (Ex. 'o' or 'x')
+        self.current_player = self.player1_symbol if starting_player == 'player1' else self.player2_symbol
+
+        # Setting up player 1
+        if player1 == 'human':
+            self.player1 = agent.HumanPlayer(self.player1_symbol, self.headless)
+        else:
+            self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
+
+        # Setting up player 2
+        if player2 == 'human':
+            self.player2 = agent.HumanPlayer(self.player2_symbol, self.headless)
+        else:
+            self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
 
     # Resets the game to the initial state.
     def reset(self):
         self.board.reset_board()
         self.winner = None
         self.game_over = False
-        self.current_player = 'o'  # Reset to 'o' or could be set to starting player
+        self.current_player = self.player1_symbol if self.starting_player == 'player1' else self.player2_symbol
         return self.get_state()
 
     # Executes the given action and updates the game state.
@@ -121,7 +137,7 @@ class Connect4:
         if self.check_win((action, available_row), self.current_player):
             self.winner = self.current_player
             self.game_over = True
-            reward = 1 if self.current_player == self.player_symbol else -1  # Reward for winning or losing
+            reward = 1 # if self.current_player == self.player1_symbol else -1  # Reward for winning or losing
 
         # Check for a draw (if the board is full)
         elif self.board.is_full():
@@ -139,7 +155,10 @@ class Connect4:
 
         # Switch to the other player if the game is not over
         if not self.game_over:
-            self.current_player = 'x' if self.current_player == 'o' else 'o'
+            if self.current_player == self.player1_symbol:
+                self.current_player = self.player2_symbol
+            elif self.current_player == self.player2_symbol:
+                self.current_player = self.player1_symbol
 
         return state, reward, done, info
 
@@ -206,37 +225,60 @@ class Connect4:
                 return True
 
         return False
+    
+    def play_game(self):
+        
+        # Displaying board if necessary
+        if not self.headless:
+            self.render()
 
-    # Prompt human to move
-    def human_move(self):
-        valid = False
-        while not valid:
-            try:
-                action = int(input(f"Player '{self.player_symbol}', choose a column (1-7): "))
-                if action in self.get_valid_actions():
-                    valid = True
-                else:
-                    print("Invalid move. Try again.")
-            except ValueError:
-                print("Invalid input. Please enter an integer between 1 and 7.")
-        return action
+        while not self.game_over:
 
-    def agent_move(self):
-        # Placeholder method for agent's move
-        valid_actions = self.get_valid_actions()
-        action = np.random.choice(valid_actions)
-        return action
+            # Getting the next move
+            if self.current_player == self.player1_symbol:
+                action = self.player1.next_move(self.get_valid_actions(), None, None)
+            else:
+                action = self.player2.next_move(self.get_valid_actions(), None, None)
+
+            # Making the next move
+            self.step(action)
+
+            # Rendering accordingly
+            if not self.headless:
+                self.render()
+
+        # Outputting message as necessary
+        if not self.headless:
+            if self.winner is None:
+                print("It's a draw.")
+            else:
+                print(f"Congratulations! Player {self.winner} is the winner!")
+
 
 def main():
     parser = argparse.ArgumentParser(description='Connect4 Game')
+
+    # Choosing whether to play or train
     parser.add_argument('--mode', type=str, default='play', choices=['play', 'train'],
                         help='Mode to run the game: "play" for playing mode, "train" for training mode.')
-    parser.add_argument('--player', type=str, default='o', choices=['o', 'x'],
-                        help='Choose your symbol: "o" or "x".')
-    parser.add_argument('--start', type=str, default='o', choices=['o', 'x'],
-                        help='Choose who starts first: "o" or "x".')
+    
+    # Choosing players' information
+    parser.add_argument('--player1', type=str, default='human', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
+                        help='Choose who is playing as the first player: "human", "random", "heuristic", "ql", or "dql".')
+    parser.add_argument('--player2', type=str, default='random', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
+                        help='Choose who is playing as the second player: "human", "random", "heuristic", "ql" or "dql".')
+    parser.add_argument('--p1_symbol', type=str, default='o',
+                        help='Choose your symbol: "o", "x", or another character.')
+    parser.add_argument('--p2_symbol', type=str, default='x',
+                        help='Choose your symbol: "o", "x", or another character.')
+    
+    # Choosing starting conditions
+    parser.add_argument('--start', type=str, default='player1', choices=['player1', 'player2'],
+                        help='Choose who starts first: "player1" or "player2".')
     parser.add_argument('--headless', action='store_true',
                         help='Run the game in headless mode (no console output). Useful for training mode.')
+
+    # ------- Validation -------
 
     # Display help message if no arguments given
     if len(sys.argv) == 1:
@@ -245,35 +287,28 @@ def main():
 
     args = parser.parse_args()
 
+    # Checking that the symbols are single characters and not the same
+    if len(args.p1_symbol) != 1 or len(args.p2_symbol) != 1:
+        print("ERROR: Please only use single characters for the p1_symbol and p2_symbol.")
+        sys.exit()
+    elif args.p1_symbol == args.p2_symbol:
+        print("ERROR: p1_symbol cannot equal p2_symbol.")
+        sys.exit()
+
+    # Ensuring that training is only done on a RL model
+    rl_models = ['ql', 'dql']
+    if args.mode == 'train' and args.player1 not in rl_models and args.player2 not in rl_models:
+        print('ERROR: Training is only available if a RL model (i.e. "ql" or "dql") is selected.')
+        sys.exit()
+
+    # -------------------------
+
     # Init with given args
-    game = Connect4(player_symbol=args.player, opponent='agent' if args.mode == 'train' else 'human',
-                    starting_player=args.start, headless=args.headless)
+    game = Connect4(player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol, 
+                    player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
 
     if args.mode == 'play':
-        # Playing mode: human vs agent
-        if not game.headless:
-            game.render()
-        while not game.game_over:
-            if game.current_player == game.player_symbol:
-                # Human player turn
-                action = game.human_move()
-            else:
-                # Agent turn
-                action = game.agent_move()
-                if not game.headless:
-                    print(f"Agent '{game.current_player}' chooses column {action}")
-            state, reward, done, info = game.step(action)
-            if not game.headless:
-                game.render()
-            if done:
-                if not game.headless:
-                    if game.winner == game.player_symbol:
-                        print("Congratulations! You win!")
-                    elif game.winner == game.opponent_symbol:
-                        print("You lose. The agent wins.")
-                    else:
-                        print("It's a draw.")
-                break
+        game.play_game()
     elif args.mode == 'train':
         # Implement training logic here
         print("Implement training logic here")
