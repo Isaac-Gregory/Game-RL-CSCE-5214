@@ -2,6 +2,7 @@ import numpy as np
 import argparse
 import sys
 import agent
+import pyqlearning
 
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
@@ -80,7 +81,7 @@ class Board:
 # Contains the game logic for Connect 4.
 class Connect4:
 
-    def __init__(self, player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
+    def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
         self.player1_symbol = player1_symbol            # Sets the first player's symbol
         self.player2_symbol = player2_symbol            # Sets the second player's symbol
         self.headless = headless                        # Decides whether to print board
@@ -88,6 +89,7 @@ class Connect4:
         self.winner = None                              # Stores the winning player's symbol for reference
         self.game_over = False                          # Boolean for tracking if the game ended
         self.starting_player = starting_player          # Storing the first player for use in resetting
+        self.mode = mode
 
         # Sets the starting symbol (Ex. 'o' or 'x')
         self.current_player = self.player1_symbol if starting_player == 'player1' else self.player2_symbol
@@ -95,14 +97,18 @@ class Connect4:
         # Setting up player 1
         if player1 == 'human':
             self.player1 = agent.HumanPlayer(self.player1_symbol, self.headless)
-        else:
+        elif player1 == 'random':
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
+        elif player1 == 'ql':
+            self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode)
 
         # Setting up player 2
         if player2 == 'human':
             self.player2 = agent.HumanPlayer(self.player2_symbol, self.headless)
-        else:
+        elif player2 == 'random':
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
+        elif player2 == 'ql':
+            self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode)
 
     # Resets the game to the initial state.
     def reset(self):
@@ -232,16 +238,25 @@ class Connect4:
         if not self.headless:
             self.render()
 
-        while not self.game_over:
+        state = self.reset()
+        done = False
+        while not done:
 
-            # Getting the next move
+            # Getting the next move if playing
             if self.current_player == self.player1_symbol:
-                action = self.player1.next_move(self.get_valid_actions(), None, None)
+                action = self.player1.next_move(self.get_valid_actions(), state)
             else:
-                action = self.player2.next_move(self.get_valid_actions(), None, None)
+                action = self.player2.next_move(self.get_valid_actions(), state)
 
             # Making the next move
-            self.step(action)
+            next_state, reward, done, curr_player = self.step(action)
+
+            # Learning from the action (if applicable)
+            if type(self.player1) == agent.QLearningAgent() and self.mode == 'train':
+                self.player1.learn(state, action, reward, next_state, done)
+            
+            # Updating the state space
+            state = next_state
 
             # Rendering accordingly
             if not self.headless:
@@ -304,14 +319,14 @@ def main():
     # -------------------------
 
     # Init with given args
-    game = Connect4(player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol, 
+    game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol, 
                     player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
 
     if args.mode == 'play':
         game.play_game()
     elif args.mode == 'train':
-        # Implement training logic here
-        print("Implement training logic here")
+        for _ in range(1000):
+            game.play_game()
 
 if __name__ == '__main__':
     main()

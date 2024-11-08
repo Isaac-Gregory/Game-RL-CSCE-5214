@@ -1,4 +1,7 @@
 import random
+import pickle
+import pyqlearning
+import sys
 
 # Template class to act as a parent to the different possible agents
 class Player():
@@ -6,11 +9,11 @@ class Player():
         self.symbol = symbol
         self.headless = headless
 
-    def next_move(self, moves, curr_state, reward):
+    def next_move(self, moves, curr_state):
         pass
 
 class HumanPlayer(Player):
-    def next_move(self, moves, curr_state, reward):
+    def next_move(self, moves, curr_state):
         valid = False
         while not valid:
             try:
@@ -25,20 +28,34 @@ class HumanPlayer(Player):
 
 
 class RandomAgent(Player):
-    def next_move(self, moves, curr_state, reward):
+    def next_move(self, moves, curr_state):
         action = random.choice(moves)
         if not self.headless:
             print(f"Agent '{self.symbol}' chooses column {action}")
         return action
     
 # class HeuristicAgent(Player):
-#     def next_move(self, moves, curr_state, reward):
+#     def next_move(self, moves, curr_state):
         
 
-# class QLearningAgent(Player):
-#     def next_move(self, moves, curr_state, reward):
-        
+class QLearningAgent(Player):
+    def __init__(self, symbol, headless, mode):
+        super().__init__(symbol, headless)
+
+        if mode == 'play':
+            with open('ql-model.pkl', 'r') as f:
+                self.agent = pickle.load(f)
+        else:
+            # self.agent = pyqlearning.QLearningAgent(42, 7)
+            print("ERROR: RL Agent not yet implemented!")
+            sys.exit()
+
+    def next_move(self, moves, curr_state):
+        return self.agent.act(curr_state)
+    
+    def learn(self, state, action, reward, next_state, done):
+        self.agent.learn(state, action, reward, next_state, done)
 
 # class DeepQLearningAgent(Player):
-#     def next_move(self, moves, curr_state, reward):
+#     def next_move(self, moves, curr_state):
         
