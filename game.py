@@ -2,7 +2,8 @@ import numpy as np
 import argparse
 import sys
 import agent
-import pyqlearning
+import gymnasium as gym
+from gymnasium import spaces
 
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
@@ -79,9 +80,14 @@ class Board:
     
 
 # Contains the game logic for Connect 4.
-class Connect4:
+class Connect4(gym.Env):
 
     def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
+        # Setting up gym environment
+        super().__init__()
+        self.action_space = spaces.Discrete(7)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(6, 7), dtype=int)
+        
         self.player1_symbol = player1_symbol            # Sets the first player's symbol
         self.player2_symbol = player2_symbol            # Sets the second player's symbol
         self.headless = headless                        # Decides whether to print board
@@ -111,12 +117,18 @@ class Connect4:
             self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode)
 
     # Resets the game to the initial state.
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        # Resetting gym
+        super().reset(seed=seed, options=options)
+
+        # Resetting board
         self.board.reset_board()
         self.winner = None
         self.game_over = False
         self.current_player = self.player1_symbol if self.starting_player == 'player1' else self.player2_symbol
-        return self.get_state()
+
+        # Returning reset state
+        return self.get_state(), {}
 
     # Executes the given action and updates the game state.
     def step(self, action):
@@ -132,7 +144,7 @@ class Connect4:
 
         # Validate the action
         if action < 0 or action >= 7:
-            raise ValueError("Invalid action. Action must be between 1 and 7.")
+            raise ValueError(f"Invalid action. Action must be between 1 and 7. Was given {action}.")
         if available_row is None:
             raise ValueError("Invalid action. Column is full.")
 
@@ -158,6 +170,7 @@ class Connect4:
         state = self.get_state()
         done = self.game_over
         info = {'current_player': self.current_player}
+        truncated = False # Choosing to not limiting the number of steps
 
         # Switch to the other player if the game is not over
         if not self.game_over:
@@ -166,17 +179,17 @@ class Connect4:
             elif self.current_player == self.player2_symbol:
                 self.current_player = self.player1_symbol
 
-        return state, reward, done, info
+        return state, reward, done, truncated, info
 
     # Returns the current state of the game as a numpy array.
     def get_state(self):
-        state = np.zeros((6, 7))
+        state = np.zeros((6, 7), dtype=int)
         for col in range(7):
             for row in range(6):
                 status = self.board.game_board[col][row].get_status()
-                if status == 'o':
+                if status == self.player1_symbol:
                     state[5 - row][col] = 1  # Flip row index for standard representation
-                elif status == 'x':
+                elif status == self.player2_symbol:
                     state[5 - row][col] = -1
                 else:
                     state[5 - row][col] = 0
@@ -249,10 +262,10 @@ class Connect4:
                 action = self.player2.next_move(self.get_valid_actions(), state)
 
             # Making the next move
-            next_state, reward, done, curr_player = self.step(action)
+            next_state, reward, done, truncated, info = self.step(action)
 
             # Learning from the action (if applicable)
-            if type(self.player1) == agent.QLearningAgent() and self.mode == 'train':
+            if self.mode == 'train' and isinstance(self.player1, agent.RLAgent):
                 self.player1.learn(state, action, reward, next_state, done)
             
             # Updating the state space
@@ -268,65 +281,6 @@ class Connect4:
                 print("It's a draw.")
             else:
                 print(f"Congratulations! Player {self.winner} is the winner!")
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Connect4 Game')
-
-    # Choosing whether to play or train
-    parser.add_argument('--mode', type=str, default='play', choices=['play', 'train'],
-                        help='Mode to run the game: "play" for playing mode, "train" for training mode.')
     
-    # Choosing players' information
-    parser.add_argument('--player1', type=str, default='human', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
-                        help='Choose who is playing as the first player: "human", "random", "heuristic", "ql", or "dql".')
-    parser.add_argument('--player2', type=str, default='random', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
-                        help='Choose who is playing as the second player: "human", "random", "heuristic", "ql" or "dql".')
-    parser.add_argument('--p1_symbol', type=str, default='o',
-                        help='Choose your symbol: "o", "x", or another character.')
-    parser.add_argument('--p2_symbol', type=str, default='x',
-                        help='Choose your symbol: "o", "x", or another character.')
-    
-    # Choosing starting conditions
-    parser.add_argument('--start', type=str, default='player1', choices=['player1', 'player2'],
-                        help='Choose who starts first: "player1" or "player2".')
-    parser.add_argument('--headless', action='store_true',
-                        help='Run the game in headless mode (no console output). Useful for training mode.')
-
-    # ------- Validation -------
-
-    # Display help message if no arguments given
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit()
-
-    args = parser.parse_args()
-
-    # Checking that the symbols are single characters and not the same
-    if len(args.p1_symbol) != 1 or len(args.p2_symbol) != 1:
-        print("ERROR: Please only use single characters for the p1_symbol and p2_symbol.")
-        sys.exit()
-    elif args.p1_symbol == args.p2_symbol:
-        print("ERROR: p1_symbol cannot equal p2_symbol.")
-        sys.exit()
-
-    # Ensuring that training is only done on a RL model
-    rl_models = ['ql', 'dql']
-    if args.mode == 'train' and args.player1 not in rl_models and args.player2 not in rl_models:
-        print('ERROR: Training is only available if a RL model (i.e. "ql" or "dql") is selected.')
-        sys.exit()
-
-    # -------------------------
-
-    # Init with given args
-    game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol, 
-                    player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
-
-    if args.mode == 'play':
-        game.play_game()
-    elif args.mode == 'train':
-        for _ in range(1000):
-            game.play_game()
-
-if __name__ == '__main__':
-    main()
+    def close(self):
+        pass

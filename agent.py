@@ -1,6 +1,5 @@
 import random
 import pickle
-import pyqlearning
 import sys
 
 # Template class to act as a parent to the different possible agents
@@ -38,7 +37,11 @@ class RandomAgent(Player):
 #     def next_move(self, moves, curr_state):
         
 
-class QLearningAgent(Player):
+class RLAgent(Player):
+    def learn(self, state, action, reward, next_state, done):
+        pass
+
+class QLearningAgent(RLAgent):
     def __init__(self, symbol, headless, mode):
         super().__init__(symbol, headless)
 
@@ -56,6 +59,6 @@ class QLearningAgent(Player):
     def learn(self, state, action, reward, next_state, done):
         self.agent.learn(state, action, reward, next_state, done)
 
-# class DeepQLearningAgent(Player):
+# class DeepQLearningAgent(RLAgent):
 #     def next_move(self, moves, curr_state):
         
