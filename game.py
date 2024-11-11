@@ -4,6 +4,7 @@ import sys
 import agent
 import gymnasium as gym
 from gymnasium import spaces
+import deepq
 
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
@@ -107,6 +108,9 @@ class Connect4(gym.Env):
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
         elif player1 == 'ql':
             self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
+        elif player1 == 'dql':
+            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=self.mode)
+
 
         # Setting up player 2
         if player2 == 'human':
@@ -115,6 +119,19 @@ class Connect4(gym.Env):
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
         elif player2 == 'ql':
             self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
+        elif player2 == 'dql':
+            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=self.mode)
+
+        # For training with DQN
+        if mode == 'train' and 'dql' in [player1, player2]:
+            if player1 == 'dql':
+                self.agent_symbol = self.player1_symbol
+                self.opponent_symbol = self.player2_symbol
+                self.opponent = self.player2
+            elif player2 == 'dql':
+                self.agent_symbol = self.player2_symbol
+                self.opponent_symbol = self.player1_symbol
+                self.opponent = self.player1
 
     # Resets the game to the initial state.
     def reset(self, seed=None, options=None):
@@ -134,6 +151,11 @@ class Connect4(gym.Env):
     def step(self, action):
 
         training_mode = True if self.mode == 'train' else False
+
+        # Special function for trying out training deep q
+        if self.mode == 'train' and ('dql' in [self.player1, self.player2]):
+            state, reward, done, truncated, info = deepq.DQNStep(self, action)
+            return state, reward, done, truncated, info
 
         # Game already ended
         if training_mode and self.game_over:

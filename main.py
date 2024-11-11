@@ -1,5 +1,6 @@
 import argparse
 import sys
+from stable_baselines3 import DQN  # Import DQN algorithm
 from game import Connect4
 from stable_baselines3.common.env_checker import check_env
 
@@ -51,15 +52,29 @@ def main():
 
     # -------------------------
 
-    # Init with given args
-    game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol, 
-                    player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
+    # If training Deep Q-Learning Agent
+    if args.mode == 'train' and (args.player1 == 'dql' or args.player2 == 'dql'):
+        # Initialize environment
+        env = Connect4(mode='train', player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
+                       player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
+        # Check environment
+        check_env(env)
+        # Create the DQN agent
+        model = DQN('MlpPolicy', env, verbose=1)
+        # Train the agent
+        model.learn(total_timesteps=10000)
+        # Save the agent
+        model.save('dql-model.zip')
+    else:
+        # Init with given args
+        game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
+                        player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
 
-    # Running play mode or training mode
-    if args.mode == 'play':
-        game.play_game()
-    elif args.mode == 'train':
-        game.train_game()
+        # Running play mode or training mode
+        if args.mode == 'play':
+            game.play_game()
+        elif args.mode == 'train':
+            game.train_game()
 
 if __name__ == '__main__':
     # env = Connect4()

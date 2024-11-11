@@ -34,7 +34,7 @@ class RandomAgent(Player):
     def next_move(self, moves, curr_state):
         action = random.choice(moves)
         if not self.headless:
-            print(f"Agent '{self.symbol}' chooses column {action + 1}")
+            print(f"Random Agent '{self.symbol}' chooses column {action + 1}")
         return action
 
 
@@ -67,13 +67,14 @@ class QLearningAgent(RLAgent):
         self.agent.save("test1_" + str(timesteps))
 
 class DeepQLearningAgent(RLAgent):
-    def __init__(self, symbol, headless, mode, game):
+    def __init__(self, symbol, headless, mode):
         super().__init__(symbol, headless)
         self.mode = mode
         if mode == 'play':
-            self.agent = DQN.load('dql-model.zip', env=game)
+            self.agent = DQN.load('dql-model.zip')
         else:
-            self.agent = DQN('MlpPolicy', game, verbose=1)
+            # For training, we handle it in main.py
+            pass
 
     def next_move(self, moves, curr_state):
         action, _ = self.agent.predict(curr_state)
@@ -81,6 +82,5 @@ class DeepQLearningAgent(RLAgent):
             action = random.choice(moves)
         return action
 
-    def learn(self, total_timesteps=10000):
-        self.agent.learn(total_timesteps=total_timesteps)
-        self.agent.save('dql-model.zip')
+    def learn(self):
+        pass  # Training handled in main.py
