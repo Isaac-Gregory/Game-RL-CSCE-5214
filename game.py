@@ -106,7 +106,7 @@ class Connect4(gym.Env):
         elif player1 == 'random':
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
         elif player1 == 'ql':
-            self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode)
+            self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
 
         # Setting up player 2
         if player2 == 'human':
@@ -114,7 +114,7 @@ class Connect4(gym.Env):
         elif player2 == 'random':
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
         elif player2 == 'ql':
-            self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode)
+            self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
 
     # Resets the game to the initial state.
     def reset(self, seed=None, options=None):
@@ -133,11 +133,26 @@ class Connect4(gym.Env):
     # Executes the given action and updates the game state.
     def step(self, action):
         # Game already ended
-        if self.game_over:
-            raise Exception("Game is over. Please reset the game.")
+        if self.mode == 'train' and self.game_over:
+            # Prepare the state and info to return
+            state = self.get_state()
+            done = True
+            info = {'current_player': self.current_player}
+            truncated = False # Choosing to not limiting the number of steps
 
-        # Adjust for zero-based index
-        action -= 1
+            return state, -1, done, truncated, info
+        elif self.game_over:
+            raise Exception("Game is over. Please reset the game.")
+        
+        # Addressing full columns when training
+        if self.mode == 'train' and action not in self.get_valid_actions():
+            # Prepare the state and info to return
+            state = self.get_state()
+            done = False
+            info = {'current_player': self.current_player}
+            truncated = False # Choosing to not limiting the number of steps
+
+            return state, -0.1, done, truncated, info
 
         # Get the next available slot in the column
         available_row = self.board.available_slot_in_col(action)
@@ -179,6 +194,8 @@ class Connect4(gym.Env):
             elif self.current_player == self.player2_symbol:
                 self.current_player = self.player1_symbol
 
+        self.render()
+
         return state, reward, done, truncated, info
 
     # Returns the current state of the game as a numpy array.
@@ -188,16 +205,22 @@ class Connect4(gym.Env):
             for row in range(6):
                 status = self.board.game_board[col][row].get_status()
                 if status == self.player1_symbol:
-                    state[5 - row][col] = 1  # Flip row index for standard representation
+                    if status == self.current_player:
+                        state[5 - row][col] = 1  # Flip row index for standard representation
+                    else:
+                        state[5 - row][col] = -1
                 elif status == self.player2_symbol:
-                    state[5 - row][col] = -1
+                    if status == self.current_player:
+                        state[5 - row][col] = 1
+                    else:
+                        state[5 - row][col] = -1
                 else:
                     state[5 - row][col] = 0
         return state
 
     # Returns a list of valid actions
     def get_valid_actions(self):
-        valid_actions = [col + 1 for col in range(7) if self.board.available_slot_in_col(col) is not None]
+        valid_actions = [col for col in range(7) if self.board.available_slot_in_col(col) is not None]
         return valid_actions
 
     # Prints the current state of the board to the console.
@@ -251,29 +274,86 @@ class Connect4(gym.Env):
         if not self.headless:
             self.render()
 
-        state = self.reset()
+        self.reset()
         done = False
         while not done:
 
             # Getting the next move if playing
             if self.current_player == self.player1_symbol:
-                action = self.player1.next_move(self.get_valid_actions(), state)
+                action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+
+                # Making the next move
+                print(f"ACTION: {action}")
+                next_state, reward, done, truncated, info = self.step(action)
+
+                # Learning from the action (if applicable)
+                if self.mode == 'train' and isinstance(self.player1, agent.RLAgent):
+                    print("Learning!")
+                    self.player1.learn()
+                    print("Done Learning!")
+
             else:
-                action = self.player2.next_move(self.get_valid_actions(), state)
+                action = self.player2.next_move(self.get_valid_actions(), self.get_state())
 
-            # Making the next move
-            next_state, reward, done, truncated, info = self.step(action)
+                # Making the next move
+                next_state, reward, done, truncated, info = self.step(action)
 
-            # Learning from the action (if applicable)
-            if self.mode == 'train' and isinstance(self.player1, agent.RLAgent):
-                self.player1.learn(state, action, reward, next_state, done)
-            
-            # Updating the state space
-            state = next_state
+                # Learning from the action (if applicable)
+                if self.mode == 'train' and isinstance(self.player2, agent.RLAgent):
+                    self.player2.learn()        
 
             # Rendering accordingly
             if not self.headless:
                 self.render()
+
+        # Outputting message as necessary
+        if not self.headless:
+            if self.winner is None:
+                print("It's a draw.")
+            else:
+                print(f"Congratulations! Player {self.winner} is the winner!")
+
+    def train_game(self):
+        
+        # Displaying board if necessary
+        if not self.headless:
+            self.render()
+
+        self.reset()
+        while not self.game_over:
+
+            # Getting the next move if playing
+            if self.current_player == self.player1_symbol:
+
+                # Learning from the action (if applicable)
+                if isinstance(self.player1, agent.RLAgent):
+                    self.player1.learn()
+                else:
+                    action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+
+                    # Making the next move
+                    next_state, reward, done, truncated, info = self.step(action)
+
+            else:
+
+                # Learning from the action (if applicable)
+                if isinstance(self.player2, agent.RLAgent):
+                    self.player2.learn()        
+                else:
+                    action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+
+                    # Making the next move
+                    next_state, reward, done, truncated, info = self.step(action)
+
+            # Rendering accordingly
+            if not self.headless:
+                self.render()
+
+        # If other player won, notify losing RL model
+        if self.current_player == self.player2_symbol and isinstance(self.player1, agent.RLAgent):
+            self.player1.learn()
+        elif self.current_player == self.player1_symbol and isinstance(self.player2, agent.RLAgent):
+            self.player2.learn()
 
         # Outputting message as necessary
         if not self.headless:
