@@ -48,8 +48,7 @@ class QLearningAgent(RLAgent):
         super().__init__(symbol, headless)
 
         if mode == 'play':
-            with open('ql-model.pkl', 'r') as f:
-                self.agent = pickle.load(f)
+            self.agent = PPO.load("test1_100000", env=game)
         else:
             self.agent = PPO("MlpPolicy", game, verbose=5)
 
@@ -59,7 +58,9 @@ class QLearningAgent(RLAgent):
         return action
     
     def learn(self):
-        self.agent.learn(total_timesteps=1)
+        timesteps = 100000
+        self.agent.learn(total_timesteps=timesteps)
+        self.agent.save("test1_" + str(timesteps))
 
 # class DeepQLearningAgent(RLAgent):
 #     def next_move(self, moves, curr_state):

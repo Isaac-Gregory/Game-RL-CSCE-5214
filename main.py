@@ -59,8 +59,7 @@ def main():
     if args.mode == 'play':
         game.play_game()
     elif args.mode == 'train':
-        for _ in range(1):
-            game.train_game()
+        game.train_game()
 
 if __name__ == '__main__':
     # env = Connect4()

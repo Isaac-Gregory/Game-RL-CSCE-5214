@@ -132,8 +132,11 @@ class Connect4(gym.Env):
 
     # Executes the given action and updates the game state.
     def step(self, action):
+
+        training_mode = True if self.mode == 'train' else False
+
         # Game already ended
-        if self.mode == 'train' and self.game_over:
+        if training_mode and self.game_over:
             # Prepare the state and info to return
             state = self.get_state()
             done = True
@@ -141,9 +144,19 @@ class Connect4(gym.Env):
             truncated = False # Choosing to not limiting the number of steps
 
             return state, -1, done, truncated, info
+        
+        # Game ended (not training)
         elif self.game_over:
             raise Exception("Game is over. Please reset the game.")
         
+        # # Forcing the learning to switch who takes action when training
+        # if training_mode:
+        #     if self.current_player == self.player1_symbol:
+        #         action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+
+        #     else:
+        #         action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+
         # Addressing full columns when training
         if self.mode == 'train' and action not in self.get_valid_actions():
             # Prepare the state and info to return
@@ -286,21 +299,11 @@ class Connect4(gym.Env):
                 print(f"ACTION: {action}")
                 next_state, reward, done, truncated, info = self.step(action)
 
-                # Learning from the action (if applicable)
-                if self.mode == 'train' and isinstance(self.player1, agent.RLAgent):
-                    print("Learning!")
-                    self.player1.learn()
-                    print("Done Learning!")
-
             else:
                 action = self.player2.next_move(self.get_valid_actions(), self.get_state())
 
                 # Making the next move
-                next_state, reward, done, truncated, info = self.step(action)
-
-                # Learning from the action (if applicable)
-                if self.mode == 'train' and isinstance(self.player2, agent.RLAgent):
-                    self.player2.learn()        
+                next_state, reward, done, truncated, info = self.step(action)  
 
             # Rendering accordingly
             if not self.headless:
@@ -314,53 +317,54 @@ class Connect4(gym.Env):
                 print(f"Congratulations! Player {self.winner} is the winner!")
 
     def train_game(self):
-        
-        # Displaying board if necessary
-        if not self.headless:
-            self.render()
+        self.player1.learn()
 
-        self.reset()
-        while not self.game_over:
+    #     # Displaying board if necessary
+    #     if not self.headless:
+    #         self.render()
 
-            # Getting the next move if playing
-            if self.current_player == self.player1_symbol:
+    #     self.reset()
+    #     while not self.game_over:
 
-                # Learning from the action (if applicable)
-                if isinstance(self.player1, agent.RLAgent):
-                    self.player1.learn()
-                else:
-                    action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+    #         # Getting the next move if playing
+    #         if self.current_player == self.player1_symbol:
 
-                    # Making the next move
-                    next_state, reward, done, truncated, info = self.step(action)
+    #             # Learning from the action (if applicable)
+    #             if isinstance(self.player1, agent.RLAgent):
+    #                 self.player1.learn()
+    #             else:
+    #                 action = self.player1.next_move(self.get_valid_actions(), self.get_state())
 
-            else:
+    #                 # Making the next move
+    #                 next_state, reward, done, truncated, info = self.step(action)
 
-                # Learning from the action (if applicable)
-                if isinstance(self.player2, agent.RLAgent):
-                    self.player2.learn()        
-                else:
-                    action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+    #         else:
 
-                    # Making the next move
-                    next_state, reward, done, truncated, info = self.step(action)
+    #             # Learning from the action (if applicable)
+    #             if isinstance(self.player2, agent.RLAgent):
+    #                 self.player2.learn()        
+    #             else:
+    #                 action = self.player2.next_move(self.get_valid_actions(), self.get_state())
 
-            # Rendering accordingly
-            if not self.headless:
-                self.render()
+    #                 # Making the next move
+    #                 next_state, reward, done, truncated, info = self.step(action)
 
-        # If other player won, notify losing RL model
-        if self.current_player == self.player2_symbol and isinstance(self.player1, agent.RLAgent):
-            self.player1.learn()
-        elif self.current_player == self.player1_symbol and isinstance(self.player2, agent.RLAgent):
-            self.player2.learn()
+    #         # Rendering accordingly
+    #         if not self.headless:
+    #             self.render()
 
-        # Outputting message as necessary
-        if not self.headless:
-            if self.winner is None:
-                print("It's a draw.")
-            else:
-                print(f"Congratulations! Player {self.winner} is the winner!")
+    #     # If other player won, notify losing RL model
+    #     if self.current_player == self.player2_symbol and isinstance(self.player1, agent.RLAgent):
+    #         self.player1.learn()
+    #     elif self.current_player == self.player1_symbol and isinstance(self.player2, agent.RLAgent):
+    #         self.player2.learn()
+
+    #     # Outputting message as necessary
+    #     if not self.headless:
+    #         if self.winner is None:
+    #             print("It's a draw.")
+    #         else:
+    #             print(f"Congratulations! Player {self.winner} is the winner!")
     
     def close(self):
         pass
