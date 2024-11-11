@@ -1,7 +1,8 @@
 import random
 import pickle
 import sys
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, DQN
+
 
 # Template class to act as a parent to the different possible agents
 class Player():
@@ -11,6 +12,7 @@ class Player():
 
     def next_move(self, moves, curr_state):
         pass
+
 
 class HumanPlayer(Player):
     def next_move(self, moves, curr_state):
@@ -32,16 +34,18 @@ class RandomAgent(Player):
     def next_move(self, moves, curr_state):
         action = random.choice(moves)
         if not self.headless:
-            print(f"Agent '{self.symbol}' chooses column {action}")
+            print(f"Agent '{self.symbol}' chooses column {action + 1}")
         return action
-    
+
+
 # class HeuristicAgent(Player):
 #     def next_move(self, moves, curr_state):
-        
+
 
 class RLAgent(Player):
-    def learn(self):
+    def learn(self, total_timesteps=10000):
         pass
+
 
 class QLearningAgent(RLAgent):
     def __init__(self, symbol, headless, mode, game):
@@ -61,6 +65,21 @@ class QLearningAgent(RLAgent):
     def learn(self):
         self.agent.learn(total_timesteps=1)
 
-# class DeepQLearningAgent(RLAgent):
-#     def next_move(self, moves, curr_state):
-        
+class DeepQLearningAgent(RLAgent):
+    def __init__(self, symbol, headless, mode, game):
+        super().__init__(symbol, headless)
+        self.mode = mode
+        if mode == 'play':
+            self.agent = DQN.load('dql-model.zip', env=game)
+        else:
+            self.agent = DQN('MlpPolicy', game, verbose=1)
+
+    def next_move(self, moves, curr_state):
+        action, _ = self.agent.predict(curr_state)
+        if action not in moves:
+            action = random.choice(moves)
+        return action
+
+    def learn(self, total_timesteps=10000):
+        self.agent.learn(total_timesteps=total_timesteps)
+        self.agent.save('dql-model.zip')
