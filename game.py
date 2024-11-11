@@ -5,7 +5,6 @@ import agent
 import gymnasium as gym
 from gymnasium import spaces
 
-
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
 # --player: Choose your symbol ("o" or "x"). Default is "o".
@@ -30,7 +29,6 @@ class Slot:
     def __str__(self):
         return str(self.status)
 
-
 # Represents the Connect 4 board.
 class Board:
 
@@ -53,7 +51,7 @@ class Board:
         board_str += "-" * (shape[0] * 4 + 1) + "\n"
 
         # Printing each cell
-        for row in range(shape[1] - 1, -1, -1):
+        for row in range(shape[1]-1, -1, -1):
             row_str = "| "
             for col in range(shape[0]):
                 row_str += self.game_board[col][row].get_status() + " | "
@@ -75,17 +73,16 @@ class Board:
             if self.game_board[col_index][row].get_status() == ' ':
                 return row
         return None
-
+    
     # Returns True if the gameboard has been completely filled
     def is_full(self):
         return all(self.available_slot_in_col(col) is None for col in range(7))
-
+    
 
 # Contains the game logic for Connect 4.
 class Connect4(gym.Env):
 
-    def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x',
-                 starting_player='player1', headless=False):
+    def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
         # Setting up gym environment
         super().__init__()
         self.action_space = spaces.Discrete(7)
@@ -110,8 +107,6 @@ class Connect4(gym.Env):
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
         elif player1 == 'ql':
             self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
-        elif player1 == 'dql':
-            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
 
         # Setting up player 2
         if player2 == 'human':
@@ -120,8 +115,6 @@ class Connect4(gym.Env):
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
         elif player2 == 'ql':
             self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
-        elif player2 == 'dql':
-            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
 
     # Resets the game to the initial state.
     def reset(self, seed=None, options=None):
@@ -139,17 +132,30 @@ class Connect4(gym.Env):
 
     # Executes the given action and updates the game state.
     def step(self, action):
+
+        training_mode = True if self.mode == 'train' else False
+
         # Game already ended
-        if self.mode == 'train' and self.game_over:
+        if training_mode and self.game_over:
             # Prepare the state and info to return
             state = self.get_state()
             done = True
             info = {'current_player': self.current_player}
-            truncated = False  # Choosing to not limiting the number of steps
+            truncated = False # Choosing to not limiting the number of steps
 
             return state, -1, done, truncated, info
+        
+        # Game ended (not training)
         elif self.game_over:
             raise Exception("Game is over. Please reset the game.")
+        
+        # # Forcing the learning to switch who takes action when training
+        # if training_mode:
+        #     if self.current_player == self.player1_symbol:
+        #         action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+
+        #     else:
+        #         action = self.player2.next_move(self.get_valid_actions(), self.get_state())
 
         # Addressing full columns when training
         if self.mode == 'train' and action not in self.get_valid_actions():
@@ -157,7 +163,7 @@ class Connect4(gym.Env):
             state = self.get_state()
             done = False
             info = {'current_player': self.current_player}
-            truncated = False  # Choosing to not limiting the number of steps
+            truncated = False # Choosing to not limiting the number of steps
 
             return state, -0.1, done, truncated, info
 
@@ -177,7 +183,7 @@ class Connect4(gym.Env):
         if self.check_win((action, available_row), self.current_player):
             self.winner = self.current_player
             self.game_over = True
-            reward = 1  # Reward for winning
+            reward = 1 # if self.current_player == self.player1_symbol else -1  # Reward for winning or losing
 
         # Check for a draw (if the board is full)
         elif self.board.is_full():
@@ -186,13 +192,13 @@ class Connect4(gym.Env):
 
         # No end condition
         else:
-            reward = 0  # No immediate reward
+            reward = 0 # No immediate reward
 
         # Prepare the state and info to return
         state = self.get_state()
         done = self.game_over
         info = {'current_player': self.current_player}
-        truncated = False  # Choosing to not limiting the number of steps
+        truncated = False # Choosing to not limiting the number of steps
 
         # Switch to the other player if the game is not over
         if not self.game_over:
@@ -212,9 +218,15 @@ class Connect4(gym.Env):
             for row in range(6):
                 status = self.board.game_board[col][row].get_status()
                 if status == self.player1_symbol:
-                    state[col][5 - row] = 1
+                    if status == self.current_player:
+                        state[col][5 - row] = 1  # Flip row index for standard representation
+                    else:
+                        state[col][5 - row] = -1
                 elif status == self.player2_symbol:
-                    state[col][5 - row] = -1
+                    if status == self.current_player:
+                        state[col][5 - row] = 1
+                    else:
+                        state[col][5 - row] = -1
                 else:
                     state[col][5 - row] = 0
         return state
@@ -239,7 +251,7 @@ class Connect4(gym.Env):
             (1, 0),  # Horizontal to the right
             (0, 1),  # Vertical upwards
             (1, 1),  # Diagonal up-right
-            (1, -1),  # Diagonal down-right
+            (1, -1), # Diagonal down-right
         ]
 
         for dx, dy in directions:
@@ -268,9 +280,9 @@ class Connect4(gym.Env):
                 return True
 
         return False
-
+    
     def play_game(self):
-
+        
         # Displaying board if necessary
         if not self.headless:
             self.render()
@@ -279,18 +291,19 @@ class Connect4(gym.Env):
         done = False
         while not done:
 
-            # Getting the next move
+            # Getting the next move if playing
             if self.current_player == self.player1_symbol:
                 action = self.player1.next_move(self.get_valid_actions(), self.get_state())
 
                 # Making the next move
+                print(f"ACTION: {action}")
                 next_state, reward, done, truncated, info = self.step(action)
 
             else:
                 action = self.player2.next_move(self.get_valid_actions(), self.get_state())
 
                 # Making the next move
-                next_state, reward, done, truncated, info = self.step(action)
+                next_state, reward, done, truncated, info = self.step(action)  
 
             # Rendering accordingly
             if not self.headless:
@@ -304,29 +317,54 @@ class Connect4(gym.Env):
                 print(f"Congratulations! Player {self.winner} is the winner!")
 
     def train_game(self):
+        self.player1.learn()
 
-        # Train one agent
-        if isinstance(self.player1, agent.RLAgent):
-            self.player1.learn(total_timesteps=10000)
-        elif isinstance(self.player2, agent.RLAgent):
-            self.player2.learn(total_timesteps=10000)
-        else:
-            # For non-RL agents, play the game normally
-            for _ in range(1):
-                self.reset()
-                done = False
-                while not done:
-                    if self.current_player == self.player1_symbol:
-                        action = self.player1.next_move(self.get_valid_actions(), self.get_state())
-                        next_state, reward, done, truncated, info = self.step(action)
-                    else:
-                        action = self.player2.next_move(self.get_valid_actions(), self.get_state())
-                        next_state, reward, done, truncated, info = self.step(action)
-                if not self.headless:
-                    if self.winner is None:
-                        print("It's a draw.")
-                    else:
-                        print(f"Congratulations! Player {self.winner} is the winner!")
+    #     # Displaying board if necessary
+    #     if not self.headless:
+    #         self.render()
 
+    #     self.reset()
+    #     while not self.game_over:
+
+    #         # Getting the next move if playing
+    #         if self.current_player == self.player1_symbol:
+
+    #             # Learning from the action (if applicable)
+    #             if isinstance(self.player1, agent.RLAgent):
+    #                 self.player1.learn()
+    #             else:
+    #                 action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+
+    #                 # Making the next move
+    #                 next_state, reward, done, truncated, info = self.step(action)
+
+    #         else:
+
+    #             # Learning from the action (if applicable)
+    #             if isinstance(self.player2, agent.RLAgent):
+    #                 self.player2.learn()        
+    #             else:
+    #                 action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+
+    #                 # Making the next move
+    #                 next_state, reward, done, truncated, info = self.step(action)
+
+    #         # Rendering accordingly
+    #         if not self.headless:
+    #             self.render()
+
+    #     # If other player won, notify losing RL model
+    #     if self.current_player == self.player2_symbol and isinstance(self.player1, agent.RLAgent):
+    #         self.player1.learn()
+    #     elif self.current_player == self.player1_symbol and isinstance(self.player2, agent.RLAgent):
+    #         self.player2.learn()
+
+    #     # Outputting message as necessary
+    #     if not self.headless:
+    #         if self.winner is None:
+    #             print("It's a draw.")
+    #         else:
+    #             print(f"Congratulations! Player {self.winner} is the winner!")
+    
     def close(self):
         pass
