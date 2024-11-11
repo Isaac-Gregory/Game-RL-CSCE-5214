@@ -1,4 +1,7 @@
 import random
+import pickle
+import sys
+from stable_baselines3 import PPO
 
 # Template class to act as a parent to the different possible agents
 class Player():
@@ -6,15 +9,16 @@ class Player():
         self.symbol = symbol
         self.headless = headless
 
-    def next_move(self, moves, curr_state, reward):
+    def next_move(self, moves, curr_state):
         pass
 
 class HumanPlayer(Player):
-    def next_move(self, moves, curr_state, reward):
+    def next_move(self, moves, curr_state):
         valid = False
         while not valid:
             try:
                 action = int(input(f"Player '{self.symbol}', choose a column (1-7): "))
+                action -= 1
                 if action in moves:
                     valid = True
                 else:
@@ -25,20 +29,38 @@ class HumanPlayer(Player):
 
 
 class RandomAgent(Player):
-    def next_move(self, moves, curr_state, reward):
+    def next_move(self, moves, curr_state):
         action = random.choice(moves)
         if not self.headless:
             print(f"Agent '{self.symbol}' chooses column {action}")
         return action
     
 # class HeuristicAgent(Player):
-#     def next_move(self, moves, curr_state, reward):
+#     def next_move(self, moves, curr_state):
         
 
-# class QLearningAgent(Player):
-#     def next_move(self, moves, curr_state, reward):
-        
+class RLAgent(Player):
+    def learn(self):
+        pass
 
-# class DeepQLearningAgent(Player):
-#     def next_move(self, moves, curr_state, reward):
+class QLearningAgent(RLAgent):
+    def __init__(self, symbol, headless, mode, game):
+        super().__init__(symbol, headless)
+
+        if mode == 'play':
+            with open('ql-model.pkl', 'r') as f:
+                self.agent = pickle.load(f)
+        else:
+            self.agent = PPO("MlpPolicy", game, verbose=5)
+
+    def next_move(self, moves, curr_state):
+        action, log_prob = self.agent.predict(curr_state)
+        print(action, log_prob)
+        return action
+    
+    def learn(self):
+        self.agent.learn(total_timesteps=1)
+
+# class DeepQLearningAgent(RLAgent):
+#     def next_move(self, moves, curr_state):
         
