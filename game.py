@@ -1,9 +1,10 @@
 import numpy as np
-import argparse
-import sys
 import agent
+import sys
 import gymnasium as gym
 from gymnasium import spaces
+import pickle
+import time
 
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
@@ -148,14 +149,6 @@ class Connect4(gym.Env):
         # Game ended (not training)
         elif self.game_over:
             raise Exception("Game is over. Please reset the game.")
-        
-        # # Forcing the learning to switch who takes action when training
-        # if training_mode:
-        #     if self.current_player == self.player1_symbol:
-        #         action = self.player1.next_move(self.get_valid_actions(), self.get_state())
-
-        #     else:
-        #         action = self.player2.next_move(self.get_valid_actions(), self.get_state())
 
         # Addressing full columns when training
         if self.mode == 'train' and action not in self.get_valid_actions():
@@ -207,7 +200,7 @@ class Connect4(gym.Env):
             elif self.current_player == self.player2_symbol:
                 self.current_player = self.player1_symbol
 
-        self.render()
+        # self.render()
 
         return state, reward, done, truncated, info
 
@@ -237,9 +230,12 @@ class Connect4(gym.Env):
         return valid_actions
 
     # Prints the current state of the board to the console.
-    def render(self):
+    def render(self, file=None):
         if not self.headless:
-            print(self.board)
+            if file == None:
+                print(self.board)
+            else:
+                file.write(self.board.__str__)
 
     # Checks if the current player has won the game after their last move.
     def check_win(self, position, player):
@@ -296,7 +292,6 @@ class Connect4(gym.Env):
                 action = self.player1.next_move(self.get_valid_actions(), self.get_state())
 
                 # Making the next move
-                print(f"ACTION: {action}")
                 next_state, reward, done, truncated, info = self.step(action)
 
             else:
@@ -316,55 +311,89 @@ class Connect4(gym.Env):
             else:
                 print(f"Congratulations! Player {self.winner} is the winner!")
 
-    def train_game(self):
-        self.player1.learn()
+    def train_game(self, episodes=10000):
 
-    #     # Displaying board if necessary
-    #     if not self.headless:
-    #         self.render()
+        p1_is_rl = True if isinstance(self.player1, agent.RLAgent) else False
+        p2_is_rl = True if isinstance(self.player2, agent.RLAgent) else False
+        
+        start_time = time.time()
+        curr_time = time.time()
 
-    #     self.reset()
-    #     while not self.game_over:
+        # Opening the file
+        # Redirecting standard output to the file for logging
+        with open('output.txt', 'a') as logger:
 
-    #         # Getting the next move if playing
-    #         if self.current_player == self.player1_symbol:
+            for ep in range(episodes):
+                prev_time = curr_time
+                curr_time = time.time()
+                update_str = f"Episode: {ep}\tTime Elapsed: {curr_time-start_time:.2f}\tTime of Last Episode: {curr_time-prev_time:.2f}\n"
+                print(update_str)
+                logger.write(update_str)
 
-    #             # Learning from the action (if applicable)
-    #             if isinstance(self.player1, agent.RLAgent):
-    #                 self.player1.learn()
-    #             else:
-    #                 action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+                # Displaying board if necessary
+                self.render(logger)
 
-    #                 # Making the next move
-    #                 next_state, reward, done, truncated, info = self.step(action)
+                self.reset()
+                prev_action = None
+                while not self.game_over:
 
-    #         else:
+                    state = self.get_state()
+                    actions = self.get_valid_actions()
 
-    #             # Learning from the action (if applicable)
-    #             if isinstance(self.player2, agent.RLAgent):
-    #                 self.player2.learn()        
-    #             else:
-    #                 action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+                    # Getting the next move if playing
+                    if self.current_player == self.player1_symbol:
 
-    #                 # Making the next move
-    #                 next_state, reward, done, truncated, info = self.step(action)
+                        action = self.player1.next_move(actions, state)
+                        prev_action = action
 
-    #         # Rendering accordingly
-    #         if not self.headless:
-    #             self.render()
+                        # Making the next move
+                        next_state, reward, done, truncated, info = self.step(action)
 
-    #     # If other player won, notify losing RL model
-    #     if self.current_player == self.player2_symbol and isinstance(self.player1, agent.RLAgent):
-    #         self.player1.learn()
-    #     elif self.current_player == self.player1_symbol and isinstance(self.player2, agent.RLAgent):
-    #         self.player2.learn()
+                        # Learning from the action (if applicable)
+                        if p1_is_rl:
+                            self.player1.learn(state, action, reward, next_state)
 
-    #     # Outputting message as necessary
-    #     if not self.headless:
-    #         if self.winner is None:
-    #             print("It's a draw.")
-    #         else:
-    #             print(f"Congratulations! Player {self.winner} is the winner!")
+                    else:
+
+                        action = self.player2.next_move(actions, state)
+                        prev_action = action
+
+                        # Making the next move
+                        next_state, reward, done, truncated, info = self.step(action)
+
+                        # Learning from the action (if applicable)
+                        if p2_is_rl:
+                            self.player2.learn(state, action, reward, next_state)
+
+                    # Rendering accordingly
+                    self.render(logger)
+
+                # If other player won, notify losing RL model
+                state = self.get_state()
+                if self.current_player == self.player1_symbol and p1_is_rl:
+                    self.player1.learn(state, prev_action, -1, state)
+                elif self.current_player == self.player2_symbol and p2_is_rl:
+                    self.player2.learn(state, prev_action, -1, state)
+
+                # Rendering accordingly
+                self.render(logger)
+
+                # Outputting message as necessary
+                if not self.headless:
+                    if self.winner is None:
+                        print("It's a draw.")
+                    else:
+                        print(f"Congratulations! Player {self.winner} is the winner!")
+
+                # Saving model every thousandth episode
+                if ep % 1000 == 0 and ep != 0:
+                    if p1_is_rl:
+                        with open("models/p1_q_table_" + str(ep) + ".pkl", "wb") as f2:
+                            pickle.dump(self.player1.q_table, f2)
+
+                    if p2_is_rl:
+                        with open("models/p2_q_table_" + str(ep) + ".pkl", "wb") as f3:
+                            pickle.dump(self.player2.q_table, f3)
     
     def close(self):
         pass
