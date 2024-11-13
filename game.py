@@ -15,8 +15,8 @@ from gymnasium import spaces
 # Represents a slot in the Connect 4 board.
 class Slot:
 
-    def __init__(self, status=' '):
-        self.status = status
+    def __init__(self):
+        self.status = ' '
 
     # Updates the status of the slot with the given player symbol.
     def update_status(self, status):
@@ -86,7 +86,7 @@ class Connect4(gym.Env):
         # Setting up gym environment
         super().__init__()
         self.action_space = spaces.Discrete(7)
-        self.observation_space = spaces.Box(low=-1, high=1, shape=(7, 6), dtype=int)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(6, 7), dtype=int)
         
         self.player1_symbol = player1_symbol            # Sets the first player's symbol
         self.player2_symbol = player2_symbol            # Sets the second player's symbol
@@ -213,22 +213,22 @@ class Connect4(gym.Env):
 
     # Returns the current state of the game as a numpy array.
     def get_state(self):
-        state = np.zeros((7, 6), dtype=int)
+        state = np.zeros((6, 7), dtype=int)
         for col in range(7):
             for row in range(6):
                 status = self.board.game_board[col][row].get_status()
                 if status == self.player1_symbol:
                     if status == self.current_player:
-                        state[col][5 - row] = 1  # Flip row index for standard representation
+                        state[5 - row][col] = 1  # Flip row index for standard representation
                     else:
-                        state[col][5 - row] = -1
+                        state[5 - row][col] = -1
                 elif status == self.player2_symbol:
                     if status == self.current_player:
-                        state[col][5 - row] = 1
+                        state[5 - row][col] = 1
                     else:
-                        state[col][5 - row] = -1
+                        state[5 - row][col] = -1
                 else:
-                    state[col][5 - row] = 0
+                    state[5 - row][col] = 0
         return state
 
     # Returns a list of valid actions
