@@ -108,6 +108,8 @@ class Connect4(gym.Env):
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
         elif player1 == 'ql':
             self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
+        elif player1 == 'dql':
+            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
 
         # Setting up player 2
         if player2 == 'human':
@@ -116,6 +118,8 @@ class Connect4(gym.Env):
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
         elif player2 == 'ql':
             self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
+        elif player2 == 'dql':
+            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
 
     # Resets the game to the initial state.
     def reset(self, seed=None, options=None):
@@ -235,7 +239,7 @@ class Connect4(gym.Env):
             if file == None:
                 print(self.board)
             else:
-                file.write(self.board.__str__)
+                file.write(self.board.__str__())
 
     # Checks if the current player has won the game after their last move.
     def check_win(self, position, player):
@@ -321,17 +325,17 @@ class Connect4(gym.Env):
 
         # Opening the file
         # Redirecting standard output to the file for logging
-        with open('output.txt', 'a') as logger:
+        with open('output.txt', 'a') as _logger:
 
             for ep in range(episodes):
                 prev_time = curr_time
                 curr_time = time.time()
                 update_str = f"Episode: {ep}\tTime Elapsed: {curr_time-start_time:.2f}\tTime of Last Episode: {curr_time-prev_time:.2f}\n"
                 print(update_str)
-                logger.write(update_str)
+                _logger.write(update_str)
 
                 # Displaying board if necessary
-                self.render(logger)
+                self.render(_logger)
 
                 self.reset()
                 prev_action = None
@@ -351,7 +355,7 @@ class Connect4(gym.Env):
 
                         # Learning from the action (if applicable)
                         if p1_is_rl:
-                            self.player1.learn(state, action, reward, next_state)
+                            self.player1.learn(ep, state, action, reward, next_state, done)
 
                     else:
 
@@ -363,20 +367,20 @@ class Connect4(gym.Env):
 
                         # Learning from the action (if applicable)
                         if p2_is_rl:
-                            self.player2.learn(state, action, reward, next_state)
+                            self.player2.learn(ep, state, action, reward, next_state, done)
 
                     # Rendering accordingly
-                    self.render(logger)
+                    self.render(_logger)
 
                 # If other player won, notify losing RL model
                 state = self.get_state()
                 if self.current_player == self.player1_symbol and p1_is_rl:
-                    self.player1.learn(state, prev_action, -1, state)
+                    self.player1.learn(ep, state, prev_action, -1, state, True)
                 elif self.current_player == self.player2_symbol and p2_is_rl:
-                    self.player2.learn(state, prev_action, -1, state)
+                    self.player2.learn(ep, state, prev_action, -1, state, True)
 
                 # Rendering accordingly
-                self.render(logger)
+                self.render(_logger)
 
                 # Outputting message as necessary
                 if not self.headless:
@@ -386,14 +390,16 @@ class Connect4(gym.Env):
                         print(f"Congratulations! Player {self.winner} is the winner!")
 
                 # Saving model every thousandth episode
-                if ep % 1000 == 0 and ep != 0:
+                if ep % 10000 == 0 and ep != 0:
                     if p1_is_rl:
-                        with open("models/p1_q_table_" + str(ep) + ".pkl", "wb") as f2:
-                            pickle.dump(self.player1.q_table, f2)
+                        # with open("models/p1_q_table_" + str(ep) + ".pkl", "wb") as f2:
+                        #     pickle.dump(self.player1, f2)
+                        self.player1.agent.save("models/p1_dql_" + str(ep))
 
                     if p2_is_rl:
-                        with open("models/p2_q_table_" + str(ep) + ".pkl", "wb") as f3:
-                            pickle.dump(self.player2.q_table, f3)
+                        # with open("models/p2_q_table_" + str(ep) + ".pkl", "wb") as f3:
+                        #     pickle.dump(self.player2, f3)
+                        self.player2.agent.save("models/p2_dql_" + str(ep))
     
     def close(self):
         pass
