@@ -62,7 +62,7 @@ def main():
         # Create the DQN agent
         model = DQN('MlpPolicy', env, verbose=1)
         # Train the agent
-        model.learn(total_timesteps=10000)
+        model.learn(total_timesteps=100000)
         # Save the agent
         model.save('dql-model.zip')
     else:
