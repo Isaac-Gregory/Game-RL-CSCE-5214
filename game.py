@@ -111,7 +111,7 @@ class Connect4(gym.Env):
         elif player1 == 'ql':
             self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
         elif player1 == 'dql':
-            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=self.mode)
+            self.player1 = agent.DeepQLearningAgentSB(self.player1_symbol, self.headless, mode=self.mode)
 
 
         # Setting up player 2
@@ -122,7 +122,7 @@ class Connect4(gym.Env):
         elif player2 == 'ql':
             self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
         elif player2 == 'dql':
-            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=self.mode)
+            self.player2 = agent.DeepQLearningAgentSB(self.player2_symbol, self.headless, mode=self.mode)
 
         # For training with DQN
         if mode == 'train' and 'dql' in [player1, player2]:

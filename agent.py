@@ -84,7 +84,7 @@ class QLearningAgent(RLAgent):
         # for state in range(self.num_states):
         #     print(f"State {state}: Action {np.argmax(self.q_table[state])}")
 
-class DeepQLearningAgent(RLAgent):
+class DeepQLearningAgentSB(RLAgent):
     def __init__(self, symbol, headless, mode):
         super().__init__(symbol, headless)
         self.mode = mode
