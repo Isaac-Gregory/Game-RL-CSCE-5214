@@ -110,3 +110,4 @@ Saving:
 
 - Training can take a while depending on the number of episodes
 - Pre-trained models can be loaded for immediate play
+- Link to DQN from GitHub: https://github.com/keon/deep-q-learning/blob/master/ddqn.py 
