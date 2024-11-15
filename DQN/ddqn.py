@@ -13,7 +13,7 @@ from keras import backend as K
 EPISODES = 5000
 
 # This code was borrowed from the following public GitHub repository and was not self-developed for the Connect4 project
-# GitHub Link: 
+# GitHub Link: https://github.com/keon/deep-q-learning/blob/master/ddqn.py 
 # NOTE: This file may be later replaced with an alternative DQN implementation for the Connect4 project
 
 class DQNAgent:
