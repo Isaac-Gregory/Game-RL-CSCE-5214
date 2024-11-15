@@ -6,6 +6,7 @@ from gymnasium import spaces
 import pickle
 import time
 import deepq
+import os
 
 # Possible launch arguments:
 # --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
@@ -340,6 +341,10 @@ class Connect4(gym.Env):
         
         start_time = time.time()
         curr_time = time.time()
+
+        # Create models directory if it doesn't exist
+        if not os.path.exists('models'):
+            os.makedirs('models')
 
         # Opening the file
         # Redirecting standard output to the file for logging
