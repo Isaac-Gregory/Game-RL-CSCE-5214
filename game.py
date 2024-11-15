@@ -13,6 +13,11 @@ import time
 # --headless: Run the game in headless mode (no console output). Useful for training mode.
 # Running the script without args displays help
 
+LOSING_RW = -10
+WINNING_RW = 10
+TIE_RW = 0
+MOVE_RW = -0.1
+
 # Represents a slot in the Connect 4 board.
 class Slot:
 
@@ -83,7 +88,7 @@ class Board:
 # Contains the game logic for Connect 4.
 class Connect4(gym.Env):
 
-    def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
+    def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False, episodes=10_000):
         # Setting up gym environment
         super().__init__()
         self.action_space = spaces.Discrete(7)
@@ -110,6 +115,8 @@ class Connect4(gym.Env):
             self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
         elif player1 == 'dql':
             self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
+        else:
+            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self, model_file=player1)
 
         # Setting up player 2
         if player2 == 'human':
@@ -120,6 +127,8 @@ class Connect4(gym.Env):
             self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
         elif player2 == 'dql':
             self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
+        else:
+            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self, model_file=player2)
 
     # Resets the game to the initial state.
     def reset(self, seed=None, options=None):
@@ -148,7 +157,7 @@ class Connect4(gym.Env):
             info = {'current_player': self.current_player}
             truncated = False # Choosing to not limiting the number of steps
 
-            return state, -1, done, truncated, info
+            return state, LOSING_RW, done, truncated, info
         
         # Game ended (not training)
         elif self.game_over:
@@ -162,7 +171,7 @@ class Connect4(gym.Env):
             info = {'current_player': self.current_player}
             truncated = False # Choosing to not limiting the number of steps
 
-            return state, -0.1, done, truncated, info
+            return state, MOVE_RW, done, truncated, info
 
         # Get the next available slot in the column
         available_row = self.board.available_slot_in_col(action)
@@ -180,16 +189,16 @@ class Connect4(gym.Env):
         if self.check_win((action, available_row), self.current_player):
             self.winner = self.current_player
             self.game_over = True
-            reward = 1 # if self.current_player == self.player1_symbol else -1  # Reward for winning or losing
+            reward = WINNING_RW # if self.current_player == self.player1_symbol else -1  # Reward for winning or losing
 
         # Check for a draw (if the board is full)
         elif self.board.is_full():
             self.game_over = True
-            reward = 0  # No reward for a draw
+            reward = TIE_RW  # No reward for a draw
 
         # No end condition
         else:
-            reward = 0 # No immediate reward
+            reward = MOVE_RW # No immediate reward
 
         # Prepare the state and info to return
         state = self.get_state()
@@ -203,8 +212,6 @@ class Connect4(gym.Env):
                 self.current_player = self.player2_symbol
             elif self.current_player == self.player2_symbol:
                 self.current_player = self.player1_symbol
-
-        # self.render()
 
         return state, reward, done, truncated, info
 
@@ -327,7 +334,7 @@ class Connect4(gym.Env):
         # Redirecting standard output to the file for logging
         with open('output.txt', 'a') as _logger:
 
-            for ep in range(episodes):
+            for ep in range(1,episodes+1):
                 prev_time = curr_time
                 curr_time = time.time()
                 update_str = f"Episode: {ep}\tTime Elapsed: {curr_time-start_time:.2f}\tTime of Last Episode: {curr_time-prev_time:.2f}\n"
@@ -343,12 +350,13 @@ class Connect4(gym.Env):
 
                     state = self.get_state()
                     actions = self.get_valid_actions()
+                    action = -1
+                    prev_action = action
 
                     # Getting the next move if playing
                     if self.current_player == self.player1_symbol:
 
                         action = self.player1.next_move(actions, state)
-                        prev_action = action
 
                         # Making the next move
                         next_state, reward, done, truncated, info = self.step(action)
@@ -360,7 +368,6 @@ class Connect4(gym.Env):
                     else:
 
                         action = self.player2.next_move(actions, state)
-                        prev_action = action
 
                         # Making the next move
                         next_state, reward, done, truncated, info = self.step(action)
@@ -375,9 +382,19 @@ class Connect4(gym.Env):
                 # If other player won, notify losing RL model
                 state = self.get_state()
                 if self.current_player == self.player1_symbol and p1_is_rl:
-                    self.player1.learn(ep, state, prev_action, -1, state, True)
+                    self.player1.learn(ep, state, prev_action, LOSING_RW, state, True)
                 elif self.current_player == self.player2_symbol and p2_is_rl:
-                    self.player2.learn(ep, state, prev_action, -1, state, True)
+                    self.player2.learn(ep, state, prev_action, LOSING_RW, state, True)
+
+                batch_size = 32
+                if p1_is_rl: 
+                    self.player1.agent.update_target_model()
+                    if len(self.player1.agent.memory) > batch_size:
+                        self.player1.agent.replay(batch_size)
+                if p2_is_rl: 
+                    self.player2.agent.update_target_model()
+                    if len(self.player2.agent.memory) > batch_size:
+                        self.player2.agent.replay(batch_size)
 
                 # Rendering accordingly
                 self.render(_logger)
@@ -390,16 +407,12 @@ class Connect4(gym.Env):
                         print(f"Congratulations! Player {self.winner} is the winner!")
 
                 # Saving model every thousandth episode
-                if ep % 10000 == 0 and ep != 0:
+                if ep % 100 == 0:
                     if p1_is_rl:
-                        # with open("models/p1_q_table_" + str(ep) + ".pkl", "wb") as f2:
-                        #     pickle.dump(self.player1, f2)
-                        self.player1.agent.save("models/p1_dql_" + str(ep))
+                        self.player1.agent.save("models/p1_dql_" + str(ep) + ".weights.h5")
 
                     if p2_is_rl:
-                        # with open("models/p2_q_table_" + str(ep) + ".pkl", "wb") as f3:
-                        #     pickle.dump(self.player2, f3)
-                        self.player2.agent.save("models/p2_dql_" + str(ep))
+                        self.player2.agent.save("models/p2_dql_" + str(ep) + ".weights.h5")
     
     def close(self):
         pass

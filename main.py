@@ -1,7 +1,7 @@
 import argparse
 import sys
 from game import Connect4
-from stable_baselines3.common.env_checker import check_env
+# from stable_baselines3.common.env_checker import check_env
 
 def main():
     parser = argparse.ArgumentParser(description='Connect4 Game')
@@ -11,10 +11,10 @@ def main():
                         help='Mode to run the game: "play" for playing mode, "train" for training mode.')
     
     # Choosing players' information
-    parser.add_argument('--player1', type=str, default='human', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
-                        help='Choose who is playing as the first player: "human", "random", "heuristic", "ql", or "dql".')
-    parser.add_argument('--player2', type=str, default='random', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
-                        help='Choose who is playing as the second player: "human", "random", "heuristic", "ql" or "dql".')
+    parser.add_argument('--player1', type=str, default='human',
+                        help='Choose who is playing as the first player: "human", "random", "heuristic", "dql", or the model file.')
+    parser.add_argument('--player2', type=str, default='random',
+                        help='Choose who is playing as the second player: "human", "random", "heuristic", "dql", or the model file.')
     parser.add_argument('--p1_symbol', type=str, default='o',
                         help='Choose your symbol: "o", "x", or another character.')
     parser.add_argument('--p2_symbol', type=str, default='x',
@@ -25,6 +25,8 @@ def main():
                         help='Choose who starts first: "player1" or "player2".')
     parser.add_argument('--headless', action='store_true',
                         help='Run the game in headless mode (no console output). Useful for training mode.')
+    parser.add_argument('--episodes', type=int, default=10_000,
+                        help='Give a number representing the number of games during training.')
 
     # ------- Validation -------
 
@@ -43,10 +45,14 @@ def main():
         print("ERROR: p1_symbol cannot equal p2_symbol.")
         sys.exit()
 
-    # Ensuring that training is only done on a RL model
-    rl_models = ['ql', 'dql']
-    if args.mode == 'train' and args.player1 not in rl_models and args.player2 not in rl_models:
-        print('ERROR: Training is only available if a RL model (i.e. "ql" or "dql") is selected.')
+    # # Ensuring that training is only done on a RL model
+    # rl_models = ['ql', 'dql']
+    # if args.mode == 'train' and args.player1 not in rl_models and args.player2 not in rl_models:
+    #     print('ERROR: Training is only available if a RL model (i.e. "ql" or "dql") is selected.')
+    #     sys.exit()
+
+    if not isinstance(args.episodes, int):
+        print("ERROR: The value entered for 'episodes' was not an integer.")
         sys.exit()
 
     # -------------------------
@@ -59,7 +65,7 @@ def main():
     if args.mode == 'play':
         game.play_game()
     elif args.mode == 'train':
-        game.train_game(100000)
+        game.train_game(args.episodes)
 
 if __name__ == '__main__':
     # env = Connect4()

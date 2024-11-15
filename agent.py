@@ -2,10 +2,12 @@ import random
 import pickle
 import sys
 import numpy as np
-from stable_baselines3 import PPO
-from pyqlearning.qlearning.greedy_q_learning import GreedyQLearning
-from stable_baselines3.common.logger import configure
-from stable_baselines3 import DQN
+# from stable_baselines3 import PPO
+# from pyqlearning.qlearning.greedy_q_learning import GreedyQLearning
+# from stable_baselines3.common.logger import configure
+# from stable_baselines3 import DQN
+from DQN.ddqn import DQNAgent
+import tensorflow as tf
 
 # Template class to act as a parent to the different possible agents
 class Player():
@@ -89,28 +91,49 @@ class QLearningAgent(RLAgent):
         print("ERROR: This feature is no longer setup.")
         sys.exit()
 
+# class DeepQLearningAgent(RLAgent):
+#     def __init__(self, symbol, headless, mode, game, gamma=0.9, alpha=0.1, epsilon=0.2):
+#         super().__init__(symbol, headless)
+
+#         if mode == 'play':
+#             with open('dql-model.pkl', 'r') as f:
+#                 self.agent = pickle.load(f)
+#         else:
+#             print(game.action_space.n)
+#             self.agent = DQNAgent(input_dims=game.observation_space.shape, n_actions=game.action_space.n, lr=0.001, gamma=0.99, epsilon=1.0, 
+#                                   eps_dec=0.995, eps_min=0.01, mem_size=1000000, batch_size=64)
+        
+
+#     # Define function to choose an action using epsilon-greedy policy
+#     def next_move(self, moves, curr_state):
+#         state = self.agent.preprocess_board(curr_state)
+#         return self.agent.choose_action(state)
+        
+#     # Define function to update Q-values
+#     def learn(self, episode, prev_state, action, reward, next_state, done=False, info=[{}]):
+#         prev_state = self.agent.preprocess_board(prev_state)
+#         next_state = self.agent.preprocess_board(next_state)
+#         self.agent.store_transition(state=prev_state, action=action, reward=reward, state_=next_state, done=done)
+#         self.agent.learn()
+
 class DeepQLearningAgent(RLAgent):
-    def __init__(self, symbol, headless, mode, game, gamma=0.9, alpha=0.1, epsilon=0.2):
+    def __init__(self, symbol, headless, mode, game, model_file=None):
         super().__init__(symbol, headless)
 
-        if mode == 'play':
-            with open('dql-model.pkl', 'r') as f:
-                self.agent = pickle.load(f)
-        else:
-            self.agent = DQN("MlpPolicy", game, verbose=1)
-        
-        self.agent._logger = configure()
+        self.agent = DQNAgent(42, 7)
+        if model_file != None:
+            self.agent.load(model_file)
 
     # Define function to choose an action using epsilon-greedy policy
     def next_move(self, moves, curr_state):
-        action = self.agent.predict(observation=curr_state)[0]
-        if action not in moves:
-            action = np.random.choice(moves)
-        # print(f"Action: {action}")
-        return action
+        state = np.reshape(curr_state, [1, 42])
+        return self.agent.act(state)
         
     # Define function to update Q-values
-    def learn(self, episode, state, action, reward, next_state, done=False, info=[{}]):
-        self.agent.replay_buffer.add(obs=state, next_obs=next_state, action=action, reward=reward, done=done, infos=info)
-        if episode % self.agent.learning_starts == 0:
-            self.agent.train(gradient_steps=1, batch_size=self.agent.learning_starts)
+    def learn(self, episode, prev_state, action, reward, next_state, done, info=[{}]):
+        # batch_size = 32
+        self.agent.memorize(np.reshape(prev_state, [1, 42]), action, reward, np.reshape(next_state, [1, 42]), done)
+        # if len(self.agent.memory) > batch_size:
+        #     self.agent.replay(batch_size)
+
+    
