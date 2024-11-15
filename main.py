@@ -59,10 +59,19 @@ def main():
                        player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
         # Check environment
         check_env(env)
-        # Create the DQN agent
-        model = DQN('MlpPolicy', env, verbose=1)
+        # Create the DQN agent, good parameters
+        model = DQN(
+            'MlpPolicy', 
+            env, 
+            learning_rate=0.0001,
+            buffer_size=100000,
+            learning_starts=1000,
+            batch_size=64,
+            gamma=0.99,
+            verbose=1
+        )
         # Train the agent
-        model.learn(total_timesteps=100000)
+        model.learn(total_timesteps=500000)
         # Save the agent
         model.save('dql-model.zip')
     else:

@@ -4,7 +4,7 @@ import sys
 import numpy as np
 from stable_baselines3 import PPO, DQN
 
-from pyqlearning.qlearning.greedy_q_learning import QLearning
+#from pyqlearning.qlearning.greedy_q_learning import QLearning
 
 # Template class to act as a parent to the different possible agents
 class Player():
@@ -90,11 +90,20 @@ class DeepQLearningAgent(RLAgent):
         self.mode = mode
         if mode == 'play':
             self.agent = DQN.load('dql-model.zip')
-        else:
-            # For training, we handle it in main.py
-            pass
+        elif mode == 'train':
+            if hasattr(self, 'symbol') and self.symbol == 'x':  # Assuming player2 is always 'x'
+                try:
+                    self.agent = DQN.load('dql-model-v1.zip')  # Load previous version
+                except:
+                    print("No previous model found for player 2, using random actions")
+                    self.agent = None
+            else:
+                # For training player 1, we handle it in main.py
+                pass
 
     def next_move(self, moves, curr_state):
+        if self.mode == 'train' and not hasattr(self, 'agent'):
+            return random.choice(moves)
         action, _ = self.agent.predict(curr_state)
         if action not in moves:
             action = random.choice(moves)

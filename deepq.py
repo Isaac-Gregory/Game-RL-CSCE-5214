@@ -52,29 +52,40 @@ def opponent_can_create_sequence(self, opponent_symbol, length):
 def calculate_reward(self, action, row, agent_symbol, opponent_symbol):
     base_reward = 0
     
-    # Reward for potential winning sequences
-    for length in [2, 3]:
-        if creates_sequence(self, action, row, agent_symbol, length):
-            base_reward += 0.1 * length  # 0.2 for 2-in-a-row, 0.3 for 3-in-a-row
+    # Major rewards/penalties for game-ending states
+    if creates_sequence(self, action, row, agent_symbol, 4):  # Agent wins
+        return 10.0
     
-    # Penalty for allowing opponent sequences
-    for length in [2, 3]:
-        if opponent_can_create_sequence(self, opponent_symbol, length):
-            base_reward -= 0.2 * length  # -0.3 for 2-in-a-row, -0.45 for 3-in-a-row
-    
-    # Position-based rewards
-    if row == 0:  # Bottom row plays are generally good
-        base_reward += 0.1
-    if action == 3:  # Center column control is important
-        base_reward += 0.05
-        
-    # Additional strategic rewards
+    # Check if this move blocked an immediate opponent win
     if blocks_immediate_win(self, action, row, opponent_symbol):
-        base_reward += 1.5  # Big reward for blocking opponent's winning move
+        base_reward += 5.0  # Significant reward for preventing loss
+    
+    # Reward for creating winning opportunities
+    if creates_sequence(self, action, row, agent_symbol, 3):
+        base_reward += 2.0  # Three in a row is very good
+    elif creates_sequence(self, action, row, agent_symbol, 2):
+        base_reward += 0.5  # Two in a row is decent
         
+    # Penalty for allowing opponent threats
+    if opponent_can_create_sequence(self, opponent_symbol, 3):
+        base_reward -= 3.0  # Heavily penalize allowing three in a row
+    elif opponent_can_create_sequence(self, opponent_symbol, 2):
+        base_reward -= 0.8  # Penalize allowing two in a row
+    
+    # Strategic position rewards
     if creates_fork(self, action, row, agent_symbol):
-        base_reward += 0.8  # Reward for creating multiple winning threats
+        base_reward += 3.0  # Multiple winning threats is very good
+    
+    # Center control is important
+    if action == 3:
+        base_reward += 0.3
+    elif action in [2, 4]:  # Adjacent to center
+        base_reward += 0.2
         
+    # Lower rows are generally better
+    row_multiplier = (row + 1) / 6  # 1/6 for bottom row, 1 for top row
+    base_reward *= (2 - row_multiplier)  # Reduces reward for higher plays
+    
     return base_reward
 
 def blocks_immediate_win(self, col, row, opponent_symbol):
@@ -106,19 +117,18 @@ def creates_fork(self, col, row, symbol):
 
 def DQNStep(self, action):
     if self.game_over:
-        state = self.get_state()
-        return state, 0, True, False, {}
+        return self.get_state(), 0, True, False, {}
 
-    # Invalid action handling with increased penalty
+    # Heavily penalize invalid moves
     if action not in self.get_valid_actions():
-        return self.get_state(), -1, False, False, {}
+        return self.get_state(), -10, True, False, {}
 
     # Agent's turn
     available_row = self.board.available_slot_in_col(action)
     self.board.game_board[action][available_row].update_status(self.agent_symbol)
     
-    # Calculate intermediate reward using our new reward function
-    intermediate_reward = calculate_reward(
+    # Calculate reward for agent's move
+    reward = calculate_reward(
         self, 
         action, 
         available_row,
@@ -130,12 +140,12 @@ def DQNStep(self, action):
     if self.check_win((action, available_row), self.agent_symbol):
         self.winner = self.agent_symbol
         self.game_over = True
-        return self.get_state(), 3.0 + intermediate_reward, True, False, {}
+        return self.get_state(), 10.0, True, False, {}
     
     # Check for draw
     if self.board.is_full():
         self.game_over = True
-        return self.get_state(), intermediate_reward, True, False, {}
+        return self.get_state(), 0, True, False, {}
 
     # Opponent's turn
     opponent_action = self.opponent.next_move(self.get_valid_actions(), self.get_state())
@@ -146,13 +156,7 @@ def DQNStep(self, action):
     if self.check_win((opponent_action, opponent_row), self.opponent_symbol):
         self.winner = self.opponent_symbol
         self.game_over = True
-        # Bigger penalty for losing after making a move that got a good intermediate reward
-        return self.get_state(), -5.0 + (intermediate_reward * 0.5), True, False, {}
+        return self.get_state(), -10.0, True, False, {}
     
-    # Check for draw after opponent's move
-    if self.board.is_full():
-        self.game_over = True
-        return self.get_state(), intermediate_reward, True, False, {}
-
-    # Game continues - return intermediate reward
-    return self.get_state(), intermediate_reward, False, False, {}
+    # Game continues
+    return self.get_state(), reward, False, False, {}
