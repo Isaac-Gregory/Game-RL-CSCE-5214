@@ -63,32 +63,31 @@ class DeepQLearningAgent(RLAgent):
     def learn(self, episode, prev_state, action, reward, next_state, done, info=[{}]):
         self.agent.memorize(np.reshape(prev_state, [1, 42]), action, reward, np.reshape(next_state, [1, 42]), done)
 
-    
 
-    class DeepQLearningAgentSB(RLAgent):
-        def __init__(self, symbol, headless, mode):
-            super().__init__(symbol, headless)
-            self.mode = mode
-            if mode == 'play':
-                self.agent = DQN.load('dql-model.zip')
-            elif mode == 'train':
-                if hasattr(self, 'symbol') and self.symbol == 'x':  # Assuming player2 is always 'x'
-                    try:
-                        self.agent = DQN.load('dql-model-v1.zip')  # Load previous version
-                    except:
-                        print("No previous model found for player 2, using random actions")
-                        self.agent = None
-                else:
-                    # For training player 1, we handle it in main.py
-                    pass
+class DeepQLearningAgentSB(RLAgent):
+    def __init__(self, symbol, headless, mode):
+        super().__init__(symbol, headless)
+        self.mode = mode
+        if mode == 'play':
+            self.agent = DQN.load('dql-model.zip')
+        elif mode == 'train':
+            if hasattr(self, 'symbol') and self.symbol == 'x':  # Assuming player2 is always 'x'
+                try:
+                    self.agent = DQN.load('dql-model-v1.zip')  # Load previous version
+                except:
+                    print("No previous model found for player 2, using random actions")
+                    self.agent = None
+            else:
+                # For training player 1, we handle it in main.py
+                pass
 
-        def next_move(self, moves, curr_state):
-            if self.mode == 'train' and not hasattr(self, 'agent'):
-                return random.choice(moves)
-            action, _ = self.agent.predict(curr_state)
-            if action not in moves:
-                action = random.choice(moves)
-            return action
+    def next_move(self, moves, curr_state):
+        if self.mode == 'train' and not hasattr(self, 'agent'):
+            return random.choice(moves)
+        action, _ = self.agent.predict(curr_state)
+        if action not in moves:
+            action = random.choice(moves)
+        return action
 
-        def learn(self):
-            pass  # Training handled in main.py
+    def learn(self):
+        pass  # Training handled in main.py

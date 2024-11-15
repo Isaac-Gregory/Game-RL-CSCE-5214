@@ -21,9 +21,9 @@ def main():
     
     # Choosing players' information
     parser.add_argument('--player1', type=str, default='human',
-                        help='Choose who is playing as the first player: "human", "random", "heuristic", "dql", or the model file.')
+                        help='Choose who is playing as the first player: "human", "random", "heuristic", "dql", "dqlsb", or the model file.')
     parser.add_argument('--player2', type=str, default='random',
-                        help='Choose who is playing as the second player: "human", "random", "heuristic", "dql", or the model file.')
+                        help='Choose who is playing as the second player: "human", "random", "heuristic", "dql", "dqlsb", or the model file.')
     parser.add_argument('--p1_symbol', type=str, default='o',
                         help='Choose your symbol: "o", "x", or another character.')
     parser.add_argument('--p2_symbol', type=str, default='x',
@@ -55,7 +55,7 @@ def main():
     # -------------------------
 
     # If training Deep Q-Learning Agent
-    if args.mode == 'train' and (args.player1 == 'dql' or args.player2 == 'dql'):
+    if args.mode == 'train' and (args.player1 == 'dqlsb' or args.player2 == 'dqlsb'):
         # Initialize environment
         env = Connect4(mode='train', player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
                        player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
@@ -73,7 +73,7 @@ def main():
         # Train the agent
         model.learn(total_timesteps=500000)
         # Save the agent
-        model.save('dql-model.zip')
+        model.save('dqlsb-model.zip')
     else:
         # Init with given args
         game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
