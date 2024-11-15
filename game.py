@@ -1,14 +1,16 @@
 import numpy as np
-import argparse
-import sys
 import agent
+import gymnasium as gym
+from gymnasium import spaces
+import time
+import deepq
+import os
 
-# Possible launch arguments:
-# --mode: Mode to run the game ("play" for playing mode, "train" for training mode). Default is "play".
-# --player: Choose your symbol ("o" or "x"). Default is "o".
-# --start: Choose who starts first ("o" or "x"). Default is "o".
-# --headless: Run the game in headless mode (no console output). Useful for training mode.
-# Running the script without args displays help
+# Constants/rewards for reinforcement training
+LOSING_RW = -10
+WINNING_RW = 10
+TIE_RW = 0
+MOVE_RW = -0.1
 
 # Represents a slot in the Connect 4 board.
 class Slot:
@@ -78,9 +80,16 @@ class Board:
     
 
 # Contains the game logic for Connect 4.
-class Connect4:
+class Connect4(gym.Env):
 
-    def __init__(self, player1='human', player2='random', player1_symbol='o', player2_symbol='x', starting_player='player1', headless=False):
+    def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', 
+                 starting_player='player1', headless=False, episodes=10_000, save_rate=1000):
+        # Setting up gym environment
+        super().__init__()
+        self.action_space = spaces.Discrete(7)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(6, 7), dtype=int)
+        
+        # Setting game information
         self.player1_symbol = player1_symbol            # Sets the first player's symbol
         self.player2_symbol = player2_symbol            # Sets the second player's symbol
         self.headless = headless                        # Decides whether to print board
@@ -88,6 +97,9 @@ class Connect4:
         self.winner = None                              # Stores the winning player's symbol for reference
         self.game_over = False                          # Boolean for tracking if the game ended
         self.starting_player = starting_player          # Storing the first player for use in resetting
+        self.mode = mode                                # String storing either "play" or "train"
+        self.episodes = episodes                        # Number of episodes to run for
+        self.save_rate = save_rate                      # Saving rate for the RL models during training
 
         # Sets the starting symbol (Ex. 'o' or 'x')
         self.current_player = self.player1_symbol if starting_player == 'player1' else self.player2_symbol
@@ -95,63 +107,136 @@ class Connect4:
         # Setting up player 1
         if player1 == 'human':
             self.player1 = agent.HumanPlayer(self.player1_symbol, self.headless)
-        else:
+        elif player1 == 'random':
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
+        elif player1 == 'ql':
+            self.player1 = agent.QLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
+        elif player1 == 'dql':
+            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
+        elif player1 == 'dqlsb':
+            self.player1 = agent.DeepQLearningAgentSB(self.player1_symbol, self.headless, mode=self.mode)
+        else: # Model file given
+            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self, model_file=player1)
+
 
         # Setting up player 2
         if player2 == 'human':
             self.player2 = agent.HumanPlayer(self.player2_symbol, self.headless)
-        else:
+        elif player2 == 'random':
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
+        elif player2 == 'ql':
+            self.player2 = agent.QLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
+        elif player2 == 'dql':
+            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
+        elif player2 == 'dqlsb':
+            self.player2 = agent.DeepQLearningAgentSB(self.player2_symbol, self.headless, mode=self.mode)
+        else: # Model file given
+            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self, model_file=player2)
+
+        # For training with DQN
+        if mode == 'train' and 'dqlsb' in [player1, player2]:
+            if player1 == 'dqlsb':
+                self.agent_symbol = self.player1_symbol
+                self.opponent_symbol = self.player2_symbol
+                self.opponent = self.player2
+            elif player2 == 'dqlsb':
+                self.agent_symbol = self.player2_symbol
+                self.opponent_symbol = self.player1_symbol
+                self.opponent = self.player1
 
     # Resets the game to the initial state.
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        # Resetting gym
+        super().reset(seed=seed, options=options)
+
+        # Resetting board
         self.board.reset_board()
         self.winner = None
         self.game_over = False
         self.current_player = self.player1_symbol if self.starting_player == 'player1' else self.player2_symbol
-        return self.get_state()
+
+        # Returning reset state
+        return self.get_state(), {}
 
     # Executes the given action and updates the game state.
     def step(self, action):
-        # Game already ended
-        if self.game_over:
+
+        # Setting training flag to avoid consequtive calling of self.mode == 'train'
+        training_mode = True if self.mode == 'train' else False
+
+        # Special function for trying out training deep q
+        if self.mode == 'train' and ('dql' in [self.player1, self.player2]):
+            state, reward, done, truncated, info = deepq.DQNStep(self, action)
+            return state, reward, done, truncated, info
+
+        
+        # ------------ Early Ending Conditions ------------
+
+        # Game already ended (training mode)
+        if training_mode and self.game_over:
+            # Prepare the state and info to return
+            state = self.get_state()
+            done = True
+            info = {'current_player': self.current_player}
+            truncated = False # Choosing to not limiting the number of steps
+
+            return state, LOSING_RW, done, truncated, info
+        
+        # Game ended (not training)
+        elif self.game_over:
             raise Exception("Game is over. Please reset the game.")
 
-        # Adjust for zero-based index
-        action -= 1
+        # Addressing full columns (training)
+        if self.mode == 'train' and action not in self.get_valid_actions():
+            # Prepare the state and info to return
+            state = self.get_state()
+            done = False
+            info = {'current_player': self.current_player}
+            truncated = False # Choosing to not limiting the number of steps
+
+            return state, MOVE_RW, done, truncated, info
+        
+        # -------------------------------------------------
+
 
         # Get the next available slot in the column
         available_row = self.board.available_slot_in_col(action)
 
         # Validate the action
         if action < 0 or action >= 7:
-            raise ValueError("Invalid action. Action must be between 1 and 7.")
+            raise ValueError(f"Invalid action. Action must be between 1 and 7. Was given {action}.")
         if available_row is None:
             raise ValueError("Invalid action. Column is full.")
 
         # Place the current player's piece in the slot
         self.board.game_board[action][available_row].update_status(self.current_player)
 
+
+        # -------------- Reward Assignments ---------------
+
         # Check for a win condition
         if self.check_win((action, available_row), self.current_player):
             self.winner = self.current_player
             self.game_over = True
-            reward = 1 # if self.current_player == self.player1_symbol else -1  # Reward for winning or losing
+            reward = WINNING_RW
 
         # Check for a draw (if the board is full)
         elif self.board.is_full():
             self.game_over = True
-            reward = 0  # No reward for a draw
+            reward = TIE_RW
 
-        # No end condition
         else:
-            reward = 0 # No immediate reward
+            # Decling award (want system to minimize movement)
+            reward = MOVE_RW
+
+        # -------------------------------------------------
+
 
         # Prepare the state and info to return
         state = self.get_state()
         done = self.game_over
         info = {'current_player': self.current_player}
+        truncated = False # Choosing to not limiting the number of steps
 
         # Switch to the other player if the game is not over
         if not self.game_over:
@@ -160,31 +245,40 @@ class Connect4:
             elif self.current_player == self.player2_symbol:
                 self.current_player = self.player1_symbol
 
-        return state, reward, done, info
+        return state, reward, done, truncated, info
 
     # Returns the current state of the game as a numpy array.
     def get_state(self):
-        state = np.zeros((6, 7))
+        state = np.zeros((6, 7), dtype=int)
         for col in range(7):
             for row in range(6):
                 status = self.board.game_board[col][row].get_status()
-                if status == 'o':
-                    state[5 - row][col] = 1  # Flip row index for standard representation
-                elif status == 'x':
-                    state[5 - row][col] = -1
+                if status == self.player1_symbol:
+                    if status == self.current_player:
+                        state[5 - row][col] = 1  # Flip row index for standard representation
+                    else:
+                        state[5 - row][col] = -1
+                elif status == self.player2_symbol:
+                    if status == self.current_player:
+                        state[5 - row][col] = 1
+                    else:
+                        state[5 - row][col] = -1
                 else:
                     state[5 - row][col] = 0
         return state
 
     # Returns a list of valid actions
     def get_valid_actions(self):
-        valid_actions = [col + 1 for col in range(7) if self.board.available_slot_in_col(col) is not None]
+        valid_actions = [col for col in range(7) if self.board.available_slot_in_col(col) is not None]
         return valid_actions
 
-    # Prints the current state of the board to the console.
-    def render(self):
+    # Prints the current state of the board to the console or file
+    def render(self, file=None):
         if not self.headless:
-            print(self.board)
+            if file == None:
+                print(self.board)
+            else:
+                file.write(self.board.__str__())
 
     # Checks if the current player has won the game after their last move.
     def check_win(self, position, player):
@@ -229,23 +323,30 @@ class Connect4:
     def play_game(self):
         
         # Displaying board if necessary
-        if not self.headless:
-            self.render()
+        self.render()
 
-        while not self.game_over:
+        # Resetting for a new game
+        self.reset()
 
-            # Getting the next move
+        # Looping through the game
+        done = False
+        while not done:
+
+            # Getting the next move if playing
             if self.current_player == self.player1_symbol:
-                action = self.player1.next_move(self.get_valid_actions(), None, None)
-            else:
-                action = self.player2.next_move(self.get_valid_actions(), None, None)
+                action = self.player1.next_move(self.get_valid_actions(), self.get_state())
 
-            # Making the next move
-            self.step(action)
+                # Making the next move
+                next_state, reward, done, truncated, info = self.step(action)
+
+            else:
+                action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+
+                # Making the next move
+                next_state, reward, done, truncated, info = self.step(action)  
 
             # Rendering accordingly
-            if not self.headless:
-                self.render()
+            self.render()
 
         # Outputting message as necessary
         if not self.headless:
@@ -254,64 +355,111 @@ class Connect4:
             else:
                 print(f"Congratulations! Player {self.winner} is the winner!")
 
+    def train_game(self, episodes=10000):
 
-def main():
-    parser = argparse.ArgumentParser(description='Connect4 Game')
+        # Setting flags for if a player is a RL model
+        p1_is_rl = True if isinstance(self.player1, agent.RLAgent) else False
+        p2_is_rl = True if isinstance(self.player2, agent.RLAgent) else False
+        
+        # Tracking the time for output
+        start_time = time.time()
+        curr_time = time.time()
 
-    # Choosing whether to play or train
-    parser.add_argument('--mode', type=str, default='play', choices=['play', 'train'],
-                        help='Mode to run the game: "play" for playing mode, "train" for training mode.')
+        # Create models directory if it doesn't exist
+        if not os.path.exists('models'):
+            os.makedirs('models')
+
+        # Opening the file
+        # Redirecting standard output to output.txt for logging
+        with open('output.txt', 'a') as _logger:
+
+            # Looping through each episode/game
+            for ep in range(1,episodes+1):
+
+                # Outputting current results to console and file
+                prev_time = curr_time
+                curr_time = time.time()
+                update_str = f"Episode: {ep}\tTime Elapsed: {curr_time-start_time:.2f}\tTime of Last Episode: {curr_time-prev_time:.2f}\n"
+                print(update_str)
+                _logger.write(update_str)
+
+                # Displaying board if necessary
+                self.render(_logger)
+
+                # Resetting
+                self.reset()
+                prev_action = None
+
+                # Running each game
+                while not self.game_over:
+                    
+                    # Getting current state and actions
+                    state = self.get_state()
+                    actions = self.get_valid_actions()
+                    action = -1
+                    prev_action = action
+
+                    # Getting the next move if playing
+                    if self.current_player == self.player1_symbol:
+
+                        action = self.player1.next_move(actions, state)
+
+                        # Making the next move
+                        next_state, reward, done, truncated, info = self.step(action)
+
+                        # Learning from the action (if applicable)
+                        if p1_is_rl:
+                            self.player1.learn(ep, state, action, reward, next_state, done)
+
+                    else:
+
+                        action = self.player2.next_move(actions, state)
+
+                        # Making the next move
+                        next_state, reward, done, truncated, info = self.step(action)
+
+                        # Learning from the action (if applicable)
+                        if p2_is_rl:
+                            self.player2.learn(ep, state, action, reward, next_state, done)
+
+                    # Rendering accordingly
+                    self.render(_logger)
+
+                # If other player won, notify losing RL model
+                state = self.get_state()
+                if self.current_player == self.player1_symbol and p1_is_rl:
+                    self.player1.learn(ep, state, prev_action, LOSING_RW, state, True)
+                elif self.current_player == self.player2_symbol and p2_is_rl:
+                    self.player2.learn(ep, state, prev_action, LOSING_RW, state, True)
+
+                # Updating the model weights after each game
+                batch_size = 32
+                if p1_is_rl: 
+                    self.player1.agent.update_target_model()
+                    if len(self.player1.agent.memory) > batch_size:
+                        self.player1.agent.replay(batch_size)
+                if p2_is_rl: 
+                    self.player2.agent.update_target_model()
+                    if len(self.player2.agent.memory) > batch_size:
+                        self.player2.agent.replay(batch_size)
+
+                # Rendering accordingly
+                self.render(_logger)
+
+                # Outputting message as necessary
+                if not self.headless:
+                    if self.winner is None:
+                        print("It's a draw.")
+                    else:
+                        print(f"Congratulations! Player {self.winner} is the winner!")
+
+                # Saving models occasionally
+                if ep % self.save_rate == 0:
+                    if p1_is_rl:
+                        self.player1.agent.save("models/p1_dql_" + str(ep) + ".weights.h5")
+
+                    if p2_is_rl:
+                        self.player2.agent.save("models/p2_dql_" + str(ep) + ".weights.h5")
     
-    # Choosing players' information
-    parser.add_argument('--player1', type=str, default='human', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
-                        help='Choose who is playing as the first player: "human", "random", "heuristic", "ql", or "dql".')
-    parser.add_argument('--player2', type=str, default='random', choices=['human', 'random', 'heuristic', 'ql', 'dql'],
-                        help='Choose who is playing as the second player: "human", "random", "heuristic", "ql" or "dql".')
-    parser.add_argument('--p1_symbol', type=str, default='o',
-                        help='Choose your symbol: "o", "x", or another character.')
-    parser.add_argument('--p2_symbol', type=str, default='x',
-                        help='Choose your symbol: "o", "x", or another character.')
-    
-    # Choosing starting conditions
-    parser.add_argument('--start', type=str, default='player1', choices=['player1', 'player2'],
-                        help='Choose who starts first: "player1" or "player2".')
-    parser.add_argument('--headless', action='store_true',
-                        help='Run the game in headless mode (no console output). Useful for training mode.')
-
-    # ------- Validation -------
-
-    # Display help message if no arguments given
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit()
-
-    args = parser.parse_args()
-
-    # Checking that the symbols are single characters and not the same
-    if len(args.p1_symbol) != 1 or len(args.p2_symbol) != 1:
-        print("ERROR: Please only use single characters for the p1_symbol and p2_symbol.")
-        sys.exit()
-    elif args.p1_symbol == args.p2_symbol:
-        print("ERROR: p1_symbol cannot equal p2_symbol.")
-        sys.exit()
-
-    # Ensuring that training is only done on a RL model
-    rl_models = ['ql', 'dql']
-    if args.mode == 'train' and args.player1 not in rl_models and args.player2 not in rl_models:
-        print('ERROR: Training is only available if a RL model (i.e. "ql" or "dql") is selected.')
-        sys.exit()
-
-    # -------------------------
-
-    # Init with given args
-    game = Connect4(player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol, 
-                    player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
-
-    if args.mode == 'play':
-        game.play_game()
-    elif args.mode == 'train':
-        # Implement training logic here
-        print("Implement training logic here")
-
-if __name__ == '__main__':
-    main()
+    def close(self):
+        pass
