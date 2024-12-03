@@ -83,7 +83,7 @@ class Board:
 class Connect4(gym.Env):
 
     def __init__(self, mode='play', player1='human', player2='random', player1_symbol='o', player2_symbol='x', 
-                 starting_player='player1', headless=False, episodes=10_000, save_rate=1000):
+                starting_player='player1', headless=False, episodes=10_000, save_rate=1000):
         # Setting up gym environment
         super().__init__()
         self.action_space = spaces.Discrete(7)
@@ -116,7 +116,7 @@ class Connect4(gym.Env):
         elif player1 == 'dqlsb':
             self.player1 = agent.DeepQLearningAgentSB(self.player1_symbol, self.headless, mode=self.mode)
         else: # Model file given
-            self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self, model_file=player1)
+            self.player1 = agent.DeepQLearningAgentSB(self.player1_symbol, self.headless, mode=mode, model=player1)
 
 
         # Setting up player 2
@@ -131,15 +131,15 @@ class Connect4(gym.Env):
         elif player2 == 'dqlsb':
             self.player2 = agent.DeepQLearningAgentSB(self.player2_symbol, self.headless, mode=self.mode)
         else: # Model file given
-            self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self, model_file=player2)
+            self.player2 = agent.DeepQLearningAgentSB(self.player2_symbol, self.headless, mode=mode, model=player2)
 
         # For training with DQN
-        if mode == 'train' and 'dqlsb' in [player1, player2]:
-            if player1 == 'dqlsb':
+        if mode == 'train' and (isinstance(self.player1, agent.RLAgent) or isinstance(self.player2, agent.RLAgent)):
+            if isinstance(self.player1, agent.RLAgent):
                 self.agent_symbol = self.player1_symbol
                 self.opponent_symbol = self.player2_symbol
                 self.opponent = self.player2
-            elif player2 == 'dqlsb':
+            elif isinstance(self.player2, agent.RLAgent):
                 self.agent_symbol = self.player2_symbol
                 self.opponent_symbol = self.player1_symbol
                 self.opponent = self.player1
@@ -165,8 +165,10 @@ class Connect4(gym.Env):
         training_mode = True if self.mode == 'train' else False
 
         # Special function for trying out training deep q
-        if self.mode == 'train' and ('dql' in [self.player1, self.player2]):
+        if training_mode: #and ('dql' in [self.player1, self.player2]):
+            print("GOING IN")
             state, reward, done, truncated, info = deepq.DQNStep(self, action)
+            print("DONE STATUS: ", done)
             return state, reward, done, truncated, info
 
         
@@ -329,8 +331,11 @@ class Connect4(gym.Env):
         self.reset()
 
         # Looping through the game
+        num_plays = 0
         done = False
         while not done:
+            # Tracking plays for stats
+            num_plays += 1
 
             # Getting the next move if playing
             if self.current_player == self.player1_symbol:
@@ -354,6 +359,8 @@ class Connect4(gym.Env):
                 print("It's a draw.")
             else:
                 print(f"Congratulations! Player {self.winner} is the winner!")
+
+        return num_plays
 
     def train_game(self, episodes=10000):
 

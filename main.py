@@ -2,22 +2,26 @@ import argparse
 import sys
 from stable_baselines3 import DQN  # Import DQN algorithm
 from game import Connect4
+from math import floor
+from evaluate import get_game_stats
 # from stable_baselines3.common.env_checker import check_env
 
 def main():
     parser = argparse.ArgumentParser(description='Connect4 Game')
 
     # Choosing whether to play or train
-    parser.add_argument('--mode', type=str, default='play', choices=['play', 'train'],
+    parser.add_argument('--mode', type=str, default='play', choices=['play', 'train', 'evaluate'],
                         help='Mode to run the game: "play" for playing mode, "train" for training mode.')
     
-    # Traning conditions
+    # Training conditions
     parser.add_argument('--save_rate', type=int, default=1000,
                         help='Give a number representing the amount of games to run in between saving the models (i.e. a model will be saved ever __ iteration).')
     parser.add_argument('--headless', action='store_true',
                         help='Run the game in headless mode (no console output). Useful for training mode.')
     parser.add_argument('--episodes', type=int, default=10_000,
                         help='Give a number representing the number of games during training.')
+    parser.add_argument('--iterative', action='store_true',
+                        help='Trains model against newest saved model.')
     
     # Choosing players' information
     parser.add_argument('--player1', type=str, default='human',
@@ -40,10 +44,14 @@ def main():
 
     args = parser.parse_args()
 
+    if args.mode == 'evaluate':
+        args.headless = True
+
     # Checking that the symbols are single characters and not the same
     if len(args.p1_symbol) != 1 or len(args.p2_symbol) != 1:
         print("ERROR: Please only use single characters for the p1_symbol and p2_symbol.")
         sys.exit()
+
     elif args.p1_symbol == args.p2_symbol:
         print("ERROR: p1_symbol cannot equal p2_symbol.")
         sys.exit()
@@ -54,37 +62,50 @@ def main():
 
     # -------------------------
 
+    # Init with given args
+    game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
+                    player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless, episodes=args.episodes, 
+                    save_rate=args.save_rate)
+
     # If training Deep Q-Learning Agent
-    if args.mode == 'train' and (args.player1 == 'dqlsb' or args.player2 == 'dqlsb'):
-        # Initialize environment
-        env = Connect4(mode='train', player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
-                       player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless)
+    if args.mode == 'train' and not (args.player1 == 'dql' or args.player2 == 'dql'):
         # Create the DQN agent, good parameters
         model = DQN(
             'MlpPolicy', 
-            env, 
-            learning_rate=0.0001,
+            game, 
+            learning_rate=0.001,
             buffer_size=100000,
             learning_starts=1000,
             batch_size=64,
             gamma=0.99,
-            verbose=1
+            verbose=1,
+            exploration_fraction=0.5,
         )
-        # Train the agent
-        model.learn(total_timesteps=500000)
-        # Save the agent
-        model.save('dqlsb-model.zip')
-    else:
-        # Init with given args
-        game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
-                        player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless, episodes=args.episodes, 
-                    save_rate=args.save_rate)
+        
+        for i in range(floor(args.episodes/args.save_rate)):
+            # Train the agent
+            model.learn(total_timesteps=args.save_rate)
 
-        # Running play mode or training mode
-        if args.mode == 'play':
-            game.play_game()
-        elif args.mode == 'train':
-            game.train_game(args.episodes)
+            # Save the agent
+            new_model_str = f'models/final-h-emph-{i+1}.zip'
+            model.save(new_model_str)
+
+            # Updating players for iterative strategy
+            if args.iterative:
+                new_game = Connect4(mode=args.mode, player1=new_model_str, player2=new_model_str, player1_symbol=args.p1_symbol,
+                    player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless, episodes=args.episodes, 
+                    save_rate=args.save_rate)
+                model.set_env(new_game)
+
+    elif args.mode == 'train' and (args.player1 == 'dql' or args.player2 == 'dql'):
+        game.train_game(args.episodes)
+
+    elif args.mode == 'play':
+        # Running play mode
+        game.play_game()
+
+    elif args.mode == 'evaluate':
+        get_game_stats(game, args.episodes, args.p1_symbol)
 
 if __name__ == '__main__':
     # env = Connect4()

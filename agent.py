@@ -65,21 +65,14 @@ class DeepQLearningAgent(RLAgent):
 
 
 class DeepQLearningAgentSB(RLAgent):
-    def __init__(self, symbol, headless, mode):
+    def __init__(self, symbol, headless, mode, model=None):
         super().__init__(symbol, headless)
         self.mode = mode
-        if mode == 'play':
-            self.agent = DQN.load('dql-model.zip')
-        elif mode == 'train':
-            if hasattr(self, 'symbol') and self.symbol == 'x':  # Assuming player2 is always 'x'
-                try:
-                    self.agent = DQN.load('dql-model-v1.zip')  # Load previous version
-                except:
-                    print("No previous model found for player 2, using random actions")
-                    self.agent = None
-            else:
-                # For training player 1, we handle it in main.py
-                pass
+        if model is not None:
+            self.agent = DQN.load(model)
+        else:
+            print("No previous model found, using random actions")
+            self.agent = None
 
     def next_move(self, moves, curr_state):
         if self.mode == 'train' and not hasattr(self, 'agent'):
