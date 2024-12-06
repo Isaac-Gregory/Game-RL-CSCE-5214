@@ -160,7 +160,7 @@ class StatTracker(BaseCallback):
         final_str = "-"*width + '\n'
 
         final_str +=    f'\tAgent Wins: \t | {self.num_agent_wins}' + '\n'
-        final_str +=    f'\tOpp Wins: \t | {self.num_opponent_wins}' + '\n'
+        final_str +=    f'\tOpp Wins: \t\t | {self.num_opponent_wins}' + '\n'
         final_str +=    f'\tTotal Ties: \t | {self.num_ties}' + '\n'
         
         final_str += '\n'

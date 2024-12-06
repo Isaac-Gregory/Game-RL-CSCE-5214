@@ -88,7 +88,7 @@ def main():
             model.learn(total_timesteps=args.save_rate, callback=tracker)
 
             # Save the agent
-            new_model_str = f'models/zilt{i+1}.zip'
+            new_model_str = f'models/zilt{i+1}-v3.zip'
             model.save(new_model_str)
 
             # Updating players for iterative strategy
@@ -101,8 +101,11 @@ def main():
             output_str = tracker.output_info()
             with open('output.txt', "a") as file:
                 file.write(output_str + "\n")
+            tracker.reset_stats()
 
     elif args.mode == 'train' and (args.player1 == 'dql' or args.player2 == 'dql'):
+        print("Training for 'dql' is no longer supported.")
+        sys.exit()
         game.train_game(args.episodes)
 
     elif args.mode == 'play':

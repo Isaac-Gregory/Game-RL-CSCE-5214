@@ -215,7 +215,7 @@ def opponent_step(self):
     reward = 0
 
     # Opponent's turn
-    opponent_action = self.opponent.next_move(self.get_valid_actions(), self.get_state())
+    opponent_action = self.opponent.next_move(self.get_valid_actions(), self.get_state(self.opponent_symbol))
     opponent_row = self.board.available_slot_in_col(opponent_action)
     self.board.game_board[opponent_action][opponent_row].update_status(self.opponent_symbol)
     
