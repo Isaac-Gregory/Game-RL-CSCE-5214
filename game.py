@@ -5,6 +5,7 @@ from gymnasium import spaces
 import time
 import deepq
 import os
+from random import choice
 
 # Constants/rewards for reinforcement training
 LOSING_RW = -10
@@ -100,6 +101,7 @@ class Connect4(gym.Env):
         self.mode = mode                                # String storing either "play" or "train"
         self.episodes = episodes                        # Number of episodes to run for
         self.save_rate = save_rate                      # Saving rate for the RL models during training
+        self.training_agent_is_p1 = False               # Value used for swapping agent between player 1 and 2 during training
 
         # Sets the starting symbol (Ex. 'o' or 'x')
         self.current_player = self.player1_symbol if starting_player == 'player1' else self.player2_symbol
@@ -155,6 +157,10 @@ class Connect4(gym.Env):
         self.game_over = False
         self.current_player = self.player1_symbol if self.starting_player == 'player1' else self.player2_symbol
 
+        # Stochastically choosing if agent is p1 or p2 for training
+        if self.mode == 'train':
+            self.training_agent_is_p1 = choice([True, False])
+
         # Returning reset state
         return self.get_state(), {}
 
@@ -166,10 +172,10 @@ class Connect4(gym.Env):
 
         # Special function for trying out training deep q
         if training_mode: #and ('dql' in [self.player1, self.player2]):
-            print("GOING IN")
-            state, reward, done, truncated, info = deepq.DQNStep(self, action)
-            print("DONE STATUS: ", done)
-            return state, reward, done, truncated, info
+            if self.training_agent_is_p1:
+                return deepq.dqn_step_agent_opp(self, action)
+            else:
+                return deepq.dqn_step_opp_agent(self, action)
 
         
         # ------------ Early Ending Conditions ------------
@@ -250,23 +256,27 @@ class Connect4(gym.Env):
         return state, reward, done, truncated, info
 
     # Returns the current state of the game as a numpy array.
-    def get_state(self):
+    def get_state(self, symbol=None):
+        # Default symbol
+        if symbol is None: symbol = self.player1_symbol
+
+        # Getting state accordingly
         state = np.zeros((6, 7), dtype=int)
+
+        # Looping through entire table
         for col in range(7):
             for row in range(6):
+
+                # Getting current symbol at each location
                 status = self.board.game_board[col][row].get_status()
-                if status == self.player1_symbol:
-                    if status == self.current_player:
-                        state[5 - row][col] = 1  # Flip row index for standard representation
-                    else:
-                        state[5 - row][col] = -1
-                elif status == self.player2_symbol:
-                    if status == self.current_player:
-                        state[5 - row][col] = 1
-                    else:
-                        state[5 - row][col] = -1
+
+                # Comparing
+                if status == symbol:
+                    state[5 - row][col] = 1  # Flip row index for standard representation
+                elif status == ' ':
+                    state[5 - row][col] = 0  # Flip row index for standard representation
                 else:
-                    state[5 - row][col] = 0
+                    state[5 - row][col] = -1
         return state
 
     # Returns a list of valid actions
