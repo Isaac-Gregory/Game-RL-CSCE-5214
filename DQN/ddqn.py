@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
+"""
 import random
 import gymnasium as gym
 import numpy as np
 from collections import deque
 import tensorflow as tf
-from keras._tf_keras.keras.models import Sequential
-from keras._tf_keras.keras.layers import Dense
-from keras._tf_keras.keras.optimizers import Adam
-from keras import backend as K
+from tensorflow.python.keras.models import Sequential
+from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.optimizers import Adam
+from tensorflow.python.keras import backend as K
 
 
 EPISODES = 5000
@@ -30,11 +31,9 @@ class DQNAgent:
         self.target_model = self._build_model()
         self.update_target_model()
 
-    """Huber loss for Q Learning
-
-    References: https://en.wikipedia.org/wiki/Huber_loss
-                https://www.tensorflow.org/api_docs/python/tf/losses/huber_loss
-    """
+    # Huber loss for Q Learning
+    # References: https://en.wikipedia.org/wiki/Huber_loss
+    #            https://www.tensorflow.org/api_docs/python/tf/losses/huber_loss
 
     def _huber_loss(self, y_true, y_pred, clip_delta=1.0):
         error = y_true - y_pred
@@ -124,3 +123,4 @@ if __name__ == "__main__":
                 agent.replay(batch_size)
         # if e % 10 == 0:
         #     agent.save("./save/cartpole-ddqn.h5")
+"""

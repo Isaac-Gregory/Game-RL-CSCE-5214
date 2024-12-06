@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from DQN.ddqn import DQNAgent
+#from DQN.ddqn import DQNAgent
 from stable_baselines3 import PPO, DQN
 
 # Template class to act as a parent to the different possible agents
@@ -46,7 +46,7 @@ class RLAgent(Player):
     def learn(self, state, action1, reward1, next_state1):
         pass
 
-class DeepQLearningAgent(RLAgent):
+"""class DeepQLearningAgent(RLAgent):
     def __init__(self, symbol, headless, mode, game, model_file=None):
         super().__init__(symbol, headless)
 
@@ -62,6 +62,7 @@ class DeepQLearningAgent(RLAgent):
     # Define function to update Q-values
     def learn(self, episode, prev_state, action, reward, next_state, done, info=[{}]):
         self.agent.memorize(np.reshape(prev_state, [1, 42]), action, reward, np.reshape(next_state, [1, 42]), done)
+"""
 
 
 class DeepQLearningAgentSB(RLAgent):
