@@ -349,13 +349,13 @@ class Connect4(gym.Env):
 
             # Getting the next move if playing
             if self.current_player == self.player1_symbol:
-                action = self.player1.next_move(self.get_valid_actions(), self.get_state())
+                action = self.player1.next_move(self.get_valid_actions(), self.get_state(self.player1_symbol))
 
                 # Making the next move
                 next_state, reward, done, truncated, info = self.step(action)
 
             else:
-                action = self.player2.next_move(self.get_valid_actions(), self.get_state())
+                action = self.player2.next_move(self.get_valid_actions(), self.get_state(self.player2_symbol))
 
                 # Making the next move
                 next_state, reward, done, truncated, info = self.step(action)  

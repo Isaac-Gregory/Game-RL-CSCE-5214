@@ -57,14 +57,15 @@ def opponent_can_create_sequence(self, opponent_symbol, length, spaces_allowed=0
     return False
 
 def calculate_reward(self, action, row, agent_symbol, opponent_symbol):
-    base_reward = 0
-    return -0.5
+    base_reward = -0.2 # Living reward
     
     # Major rewards/penalties for game-ending states
     four_connection, four_dir = creates_sequence(self, action, row, agent_symbol, 4)
     if four_connection:  # Agent wins
-        if four_dir in 'v':
+        if four_dir == 'v':
             return 5.0
+        elif four_dir == 'h':
+            return 10.0
         else:
             return 15.0
     
@@ -77,9 +78,11 @@ def calculate_reward(self, action, row, agent_symbol, opponent_symbol):
     two_connection, two_dir = creates_sequence(self, action, row, agent_symbol, 2)
     if three_connection:
         if three_dir == 'v':
-            base_reward += 1.0  # Three in a row is very good
+            base_reward += 1.0  # Three in a row is very good, but less rare for vertical
+        elif three_dir == 'h':
+            base_reward += 2.0  # Three in a row is very good, and in between for horizontal
         else:
-            base_reward += 3.0  # Three in a row is very good
+            base_reward += 3.0  # Three in a row is very good, rare for diagonal
     elif two_connection:
         base_reward += 0.5  # Two in a row is decent
         
@@ -95,11 +98,11 @@ def calculate_reward(self, action, row, agent_symbol, opponent_symbol):
     # if creates_fork(self, action, row, agent_symbol):
     #     base_reward += 3.0  # Multiple winning threats is very good
     
-    # Center control is important
-    if action == 4:
-        base_reward += 0.2
-    elif action in [3, 5]:  # Adjacent to center
-        base_reward += 0.1
+    # # Center control is important
+    # if action == 4:
+    #     base_reward += 0.2
+    # elif action in [3, 5]:  # Adjacent to center
+    #     base_reward += 0.1
         
     # # Lower rows are generally better
     # row_multiplier = (row + 1) / 6  # 1/6 for bottom row, 1 for top row
