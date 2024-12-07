@@ -3,7 +3,7 @@ import sys
 from stable_baselines3 import DQN  # Import DQN algorithm
 from game import Connect4
 from math import floor
-from evaluate import get_game_stats
+from evaluate import get_game_stats, StatTracker
 # from stable_baselines3.common.env_checker import check_env
 
 def main():
@@ -63,6 +63,7 @@ def main():
     # -------------------------
 
     # Init with given args
+    tracker = StatTracker()
     game = Connect4(mode=args.mode, player1=args.player1, player2=args.player2, player1_symbol=args.p1_symbol,
                     player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless, episodes=args.episodes, 
                     save_rate=args.save_rate)
@@ -84,10 +85,10 @@ def main():
         
         for i in range(floor(args.episodes/args.save_rate)):
             # Train the agent
-            model.learn(total_timesteps=args.save_rate)
+            model.learn(total_timesteps=args.save_rate, callback=tracker)
 
             # Save the agent
-            new_model_str = f'models/final-h-emph-{i+1}.zip'
+            new_model_str = f'models/spaced{i+1}.zip'
             model.save(new_model_str)
 
             # Updating players for iterative strategy
@@ -96,8 +97,15 @@ def main():
                     player2_symbol=args.p2_symbol, starting_player=args.start, headless=args.headless, episodes=args.episodes, 
                     save_rate=args.save_rate)
                 model.set_env(new_game)
+        
+            output_str = tracker.output_info()
+            with open('output.txt', "a") as file:
+                file.write(output_str + "\n")
+            tracker.reset_stats()
 
     elif args.mode == 'train' and (args.player1 == 'dql' or args.player2 == 'dql'):
+        print("Training for 'dql' is no longer supported.")
+        sys.exit()
         game.train_game(args.episodes)
 
     elif args.mode == 'play':
@@ -105,7 +113,7 @@ def main():
         game.play_game()
 
     elif args.mode == 'evaluate':
-        get_game_stats(game, args.episodes, args.p1_symbol)
+        get_game_stats(game, args.episodes)
 
 if __name__ == '__main__':
     # env = Connect4()
