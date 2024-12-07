@@ -41,6 +41,8 @@ class RandomAgent(Player):
 
 # class HeuristicAgent(Player):
 #     def next_move(self, moves, curr_state):
+#     def next_move(self, moves, curr_state):
+#         pass
 
 
 
