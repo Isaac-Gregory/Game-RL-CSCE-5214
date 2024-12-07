@@ -7,3 +7,5 @@ h5py==3.10.0
 keras==2.15.0
 Flask==2.2.5
 Werkzeug==2.2.3
+flask-socketio==5.3.2
+eventlet==0.31.0

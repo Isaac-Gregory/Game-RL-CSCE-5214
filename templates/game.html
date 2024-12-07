@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connect 4</title>
+    <style>
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .board {
+            display: flex;
+            flex-direction: row;
+            background-color: #0066cc;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            vertical-align: top;
+        }
+
+        .cell {
+            width: 60px;
+            height: 60px;
+            background-color: white;
+            border-radius: 50%;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        .cell.player-o {
+            background-color: red;
+        }
+
+        .cell.player-x {
+            background-color: yellow;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        .status {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+
+        select, button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="controls">
+            <div class="player-select">
+                <select id="player-option">
+                    <option value="1">Player 1</option>
+                    <option value="2">Player 2</option>
+                </select>
+            </div>
+            <div class="opponent-select">
+                <select id="opponent">
+                    <option value="models/spaced14.zip">RL Agent</option>
+                    <option value="random">Random AI</option>
+                    <option value="human">Human</option>
+                </select>
+            </div>
+            <button id="new-game">Start Game</button>
+        </div>
+
+        <div class="status" id="status">Current Player: o</div>
+        
+        <div class="board" id="board">
+            <!-- Board will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentPlayer = 'o';
+        let gameActive = true;
+        let humanColor = 'Red';
+
+        // Create board
+        const board = document.getElementById('board');
+        for (let col = 0; col < 7; col++) {
+            const column = document.createElement('div');
+            column.className = 'column';
+            column.dataset.col = col;
+            
+            // Create cells from bottom (5) to top (0)
+            for (let row = 5; row >= 0; row--) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                column.appendChild(cell);
+            }
+            
+            column.addEventListener('click', () => makeMove(col));
+            board.appendChild(column);
+        }
+
+        function makeMove(col) {
+            if (!gameActive) return;
+            socket.emit('make_move', { column: col });
+        }
+
+        function updateBoard(boardState) {
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 7; col++) {
+                    // Flip the row index to match the visual board layout
+                    const visualRow = 5 - row;
+                    const cell = document.querySelector(`.cell[data-row="${visualRow}"][data-col="${col}"]`);
+                    cell.className = 'cell';
+                    if (boardState[row][col] === 1) {
+                        cell.classList.add('player-o');
+                    } else if (boardState[row][col] === -1) {
+                        cell.classList.add('player-x');
+                    }
+                }
+            }
+        }
+
+        // Update the status display function
+        function updateStatus(currentPlayer, gameOver, winner, humanColor) {
+            const statusElement = document.getElementById('status');
+            
+            if (gameOver) {
+                if (winner) {
+                    statusElement.textContent = `${winner === 'o' ? 'Red' : 'Yellow'} wins!`;
+                } else {
+                    statusElement.textContent = "It's a tie!";
+                }
+            } else {
+                // If humanColor is defined, always show it
+                if (humanColor) {
+                    statusElement.textContent = `Current Player: ${humanColor}`;
+                } else {
+                    // If no human_color, then fallback to currentPlayer or none
+                    if (!currentPlayer) {
+                        statusElement.textContent = 'Current Player: None';
+                    } else {
+                        statusElement.textContent = `Current Player: ${currentPlayer === 'o' ? 'Red' : 'Yellow'}`;
+                    }
+                }
+            }
+        }
+
+        // Socket events
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('game_state', (data) => {
+            updateBoard(data.board);
+            currentPlayer = data.current_player;
+            humanColor = data.human_color;
+            updateStatus(currentPlayer, data.game_over, data.winner, humanColor);
+            gameActive = !data.game_over;
+        });
+
+        socket.on('error', (data) => {
+            alert(data.message);
+        });
+
+        // New game button
+        document.getElementById('new-game').addEventListener('click', () => {
+            const playerOption = document.getElementById('player-option').value;
+            const opponent = document.getElementById('opponent').value;
+            socket.emit('new_game', { 
+                player_option: playerOption,
+                opponent: opponent 
+            });
+            gameActive = true;
+            
+            // Set initial status based on player selection
+            const initialColor = playerOption === '1' ? 'Red' : 'Yellow';
+            document.getElementById('status').textContent = `Current Player: ${initialColor}`;
+        });
+
+        // Initialize with no player
+        document.getElementById('status').textContent = 'Current Player: None';
+    </script>
+</body>
+</html>
