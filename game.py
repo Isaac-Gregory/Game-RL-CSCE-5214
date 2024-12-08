@@ -106,9 +106,9 @@ class Connect4(gym.Env):
         # Sets the starting symbol (Ex. 'o' or 'x')
         self.current_player = self.player1_symbol if starting_player == 'player1' else self.player2_symbol
 
-        # Setting up player 1
+        # Replace the human player setup with None instead of HumanPlayer
         if player1 == 'human':
-            self.player1 = agent.HumanPlayer(self.player1_symbol, self.headless)
+            self.player1 = None
         elif player1 == 'random':
             self.player1 = agent.RandomAgent(self.player1_symbol, self.headless)
         elif player1 == 'ql':
@@ -117,13 +117,12 @@ class Connect4(gym.Env):
             self.player1 = agent.DeepQLearningAgent(self.player1_symbol, self.headless, mode=mode, game=self)
         elif player1 == 'dqlsb':
             self.player1 = agent.DeepQLearningAgentSB(self.player1_symbol, self.headless, mode=self.mode)
-        else: # Model file given
+        else: # Model file
             self.player1 = agent.DeepQLearningAgentSB(self.player1_symbol, self.headless, mode=mode, model=player1)
 
-
-        # Setting up player 2
+        # Same change for player 2
         if player2 == 'human':
-            self.player2 = agent.HumanPlayer(self.player2_symbol, self.headless)
+            self.player2 = None
         elif player2 == 'random':
             self.player2 = agent.RandomAgent(self.player2_symbol, self.headless)
         elif player2 == 'ql':
@@ -132,7 +131,7 @@ class Connect4(gym.Env):
             self.player2 = agent.DeepQLearningAgent(self.player2_symbol, self.headless, mode=mode, game=self)
         elif player2 == 'dqlsb':
             self.player2 = agent.DeepQLearningAgentSB(self.player2_symbol, self.headless, mode=self.mode)
-        else: # Model file given
+        else: # Model file
             self.player2 = agent.DeepQLearningAgentSB(self.player2_symbol, self.headless, mode=mode, model=player2)
 
         # For training with DQN

@@ -63,7 +63,6 @@
             <div class="player-select">
                 <select id="player-option">
                     <option value="1">Player 1</option>
-                    <option value="2">Player 2</option>
                 </select>
             </div>
             <div class="opponent-select">
@@ -76,7 +75,7 @@
             <button id="new-game">Start Game</button>
         </div>
 
-        <div class="status" id="status">Current Player: o</div>
+        <div class="status" id="status">Current Player: None</div>
         
         <div class="board" id="board">
             <!-- Board will be populated by JavaScript -->
@@ -86,29 +85,36 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         const socket = io();
-        let currentPlayer = 'o';
+        let currentPlayer = null;
         let gameActive = true;
-        let humanColor = 'Red';
+        let humanColor = null;
+        let playerOptionSelected = '1';
+        let opponentSelected = 'human';
 
-        // Create board
         const board = document.getElementById('board');
-        for (let col = 0; col < 7; col++) {
-            const column = document.createElement('div');
-            column.className = 'column';
-            column.dataset.col = col;
-            
-            // Create cells from bottom (5) to top (0)
-            for (let row = 5; row >= 0; row--) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.dataset.row = row;
-                cell.dataset.col = col;
-                column.appendChild(cell);
+
+        function createBoard() {
+            board.innerHTML = ''; // Clear existing board
+            for (let col = 0; col < 7; col++) {
+                const column = document.createElement('div');
+                column.className = 'column';
+                column.dataset.col = col;
+
+                for (let row = 5; row >= 0; row--) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    column.appendChild(cell);
+                }
+
+                column.addEventListener('click', () => makeMove(col));
+                board.appendChild(column);
             }
-            
-            column.addEventListener('click', () => makeMove(col));
-            board.appendChild(column);
         }
+
+        // Initialize empty board on page load
+        createBoard();
 
         function makeMove(col) {
             if (!gameActive) return;
@@ -118,7 +124,6 @@
         function updateBoard(boardState) {
             for (let row = 0; row < 6; row++) {
                 for (let col = 0; col < 7; col++) {
-                    // Flip the row index to match the visual board layout
                     const visualRow = 5 - row;
                     const cell = document.querySelector(`.cell[data-row="${visualRow}"][data-col="${col}"]`);
                     cell.className = 'cell';
@@ -131,10 +136,8 @@
             }
         }
 
-        // Update the status display function
         function updateStatus(currentPlayer, gameOver, winner, humanColor) {
             const statusElement = document.getElementById('status');
-            
             if (gameOver) {
                 if (winner) {
                     statusElement.textContent = `${winner === 'o' ? 'Red' : 'Yellow'} wins!`;
@@ -142,11 +145,12 @@
                     statusElement.textContent = "It's a tie!";
                 }
             } else {
-                // If humanColor is defined, always show it
-                if (humanColor) {
+                const humanVsAI = (opponentSelected !== 'human');
+                if (humanVsAI && humanColor) {
+                    // Always show humanColor in human vs AI scenario
                     statusElement.textContent = `Current Player: ${humanColor}`;
                 } else {
-                    // If no human_color, then fallback to currentPlayer or none
+                    // human vs human or no humanColor (should remain None or show actual current player)
                     if (!currentPlayer) {
                         statusElement.textContent = 'Current Player: None';
                     } else {
@@ -156,7 +160,7 @@
             }
         }
 
-        // Socket events
+        // Socket Events
         socket.on('connect', () => {
             console.log('Connected to server');
         });
@@ -173,23 +177,20 @@
             alert(data.message);
         });
 
-        // New game button
         document.getElementById('new-game').addEventListener('click', () => {
-            const playerOption = document.getElementById('player-option').value;
-            const opponent = document.getElementById('opponent').value;
+            playerOptionSelected = document.getElementById('player-option').value;
+            opponentSelected = document.getElementById('opponent').value;
+
+            // Reset the board and status before new game state arrives
+            createBoard();
+            document.getElementById('status').textContent = 'Current Player: None';
+
             socket.emit('new_game', { 
-                player_option: playerOption,
-                opponent: opponent 
+                player_option: playerOptionSelected,
+                opponent: opponentSelected 
             });
             gameActive = true;
-            
-            // Set initial status based on player selection
-            const initialColor = playerOption === '1' ? 'Red' : 'Yellow';
-            document.getElementById('status').textContent = `Current Player: ${initialColor}`;
         });
-
-        // Initialize with no player
-        document.getElementById('status').textContent = 'Current Player: None';
     </script>
 </body>
 </html>
