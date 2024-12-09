@@ -82,7 +82,7 @@ To play against either of the DQN models, the user needs to enter in the followi
 
 Stable Baselines3 Model (run after there is a trained model):
 
-`python main.py --mode play --player1 'models/spaced14.zip' --player2 human`
+`python main.py --mode play --player1 models/spaced14.zip --player2 human`
 
 **~~GitHub-based Model:~~**
 
