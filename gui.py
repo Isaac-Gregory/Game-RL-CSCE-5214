@@ -288,6 +288,6 @@ if __name__ == "__main__":
     # Creating the Connect 4 game
     game = Connect4(mode='play', player1=player1, player2=player2, player1_symbol='o', player2_symbol='x', headless=True)
 
-    # Initializing the Tkinter app an running it
+    # Initializing the Tkinter app and running it
     app = Connect4App(game, options.player_option, agent_needed)
     app.mainloop()

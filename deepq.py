@@ -1,5 +1,8 @@
 import game
 
+WIN_RW = 100.0
+LOSS_RW = -100.0
+
 def creates_sequence(self, col, row, symbol, length, spaces_allowed=0) -> tuple[bool, str]:
     """Check if the move creates a sequence of given length"""
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]  # vertical, horizontal, diagonals
@@ -57,42 +60,42 @@ def opponent_can_create_sequence(self, opponent_symbol, length, spaces_allowed=0
     return False
 
 def calculate_reward(self, action, row, agent_symbol, opponent_symbol):
-    base_reward = -0.2 # Living reward
+    base_reward = -0.5 # Living reward
     
-    # Major rewards/penalties for game-ending states
-    four_connection, four_dir = creates_sequence(self, action, row, agent_symbol, 4)
-    if four_connection:  # Agent wins
-        if four_dir == 'v':
-            return 5.0
-        elif four_dir == 'h':
-            return 10.0
-        else:
-            return 15.0
+    # # Major rewards/penalties for game-ending states
+    # four_connection, four_dir = creates_sequence(self, action, row, agent_symbol, 4)
+    # if four_connection:  # Agent wins
+    #     # if four_dir == 'v':
+    #     #     return 5.0
+    #     # elif four_dir == 'h':
+    #     #     return 10.0
+    #     # else:
+    #     return 15.0
     
     # Check if this move blocked an immediate opponent win
     if blocks_immediate_win(self, action, row, opponent_symbol):
         base_reward += 3.0  # Significant reward for preventing loss
     
-    # Reward for creating winning opportunities
-    three_connection, three_dir = creates_sequence(self, action, row, agent_symbol, 3, 1)
-    two_connection, two_dir = creates_sequence(self, action, row, agent_symbol, 2)
-    if three_connection:
-        if three_dir == 'v':
-            base_reward += 1.0  # Three in a row is very good, but less rare for vertical
-        elif three_dir == 'h':
-            base_reward += 2.0  # Three in a row is very good, and in between for horizontal
-        else:
-            base_reward += 3.0  # Three in a row is very good, rare for diagonal
-    elif two_connection:
-        base_reward += 0.5  # Two in a row is decent
+    # # Reward for creating winning opportunities
+    # three_connection, three_dir = creates_sequence(self, action, row, agent_symbol, 3, 1)
+    # two_connection, two_dir = creates_sequence(self, action, row, agent_symbol, 2)
+    # if three_connection:
+    #     # if three_dir == 'v':
+    #     #     base_reward += 1.0  # Three in a row is very good, but less rare for vertical
+    #     # elif three_dir == 'h':
+    #     #     base_reward += 2.0  # Three in a row is very good, and in between for horizontal
+    #     # else:
+    #     base_reward += 3.0  # Three in a row is very good, rare for diagonal
+    # elif two_connection:
+    #     base_reward += 0.5  # Two in a row is decent
         
-    # Penalty for allowing opponent threats
-    opp_three_conn, opp_three_dir = creates_sequence(self, action, row, opponent_symbol, 3, 1)
-    opp_two_conn, opp_two_dir = creates_sequence(self, action, row, opponent_symbol, 2)
-    if opp_three_conn:
-        base_reward -= 3.0  # Heavily penalize allowing three in a row
-    elif opp_two_conn:
-        base_reward -= 0.8  # Penalize allowing two in a row
+    # # Penalty for allowing opponent threats
+    # opp_three_conn, opp_three_dir = creates_sequence(self, action, row, opponent_symbol, 3, 1)
+    # opp_two_conn, opp_two_dir = creates_sequence(self, action, row, opponent_symbol, 2)
+    # if opp_three_conn:
+    #     base_reward -= 3.0  # Heavily penalize allowing three in a row
+    # elif opp_two_conn:
+    #     base_reward -= 0.8  # Penalize allowing two in a row
     
     # # Strategic position rewards
     # if creates_fork(self, action, row, agent_symbol):
@@ -204,7 +207,7 @@ def agent_step(self, action) -> float:
     if self.check_win((action, available_row), self.agent_symbol):
         self.winner = self.agent_symbol
         self.game_over = True
-        reward += 10.0
+        reward += WIN_RW
     
     # Check for draw
     if self.board.is_full():
@@ -226,7 +229,7 @@ def opponent_step(self):
     if self.check_win((opponent_action, opponent_row), self.opponent_symbol):
         self.winner = self.opponent_symbol
         self.game_over = True
-        reward = -20.0
+        reward = LOSS_RW
     
     # Check for draw
     if self.board.is_full():
