@@ -15,11 +15,13 @@ class Player():
 
 class HumanPlayer(Player):
     def next_move(self, moves, curr_state):
+        # Allows a human player to select a column interactively.
+        # Ensures the move is valid before proceeding.
         valid = False
         while not valid:
             try:
                 action = int(input(f"Player '{self.symbol}', choose a column (1-7): "))
-                action -= 1
+                action -= 1 # Convert to 0-based index for internal logic.
                 if action in moves:
                     valid = True
                 else:
@@ -39,6 +41,8 @@ class RandomAgent(Player):
 
 # class HeuristicAgent(Player):
 #     def next_move(self, moves, curr_state):
+#     def next_move(self, moves, curr_state):
+#         pass
 
 
 
