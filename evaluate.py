@@ -30,7 +30,7 @@ def get_game_stats(self, num_games):
 
         if self.winner is None:
             ties += 1
-        elif self.winner == self.agent_symbol:
+        elif self.winner == self.player1_symbol:
             wins += 1
         else:
             losses += 1

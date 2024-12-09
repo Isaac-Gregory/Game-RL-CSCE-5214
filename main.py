@@ -88,7 +88,7 @@ def main():
             model.learn(total_timesteps=args.save_rate, callback=tracker)
 
             # Save the agent
-            new_model_str = f'models/spaced{i+1}.zip'
+            new_model_str = f'models/new{i+1}-v2.zip'
             model.save(new_model_str)
 
             # Updating players for iterative strategy
