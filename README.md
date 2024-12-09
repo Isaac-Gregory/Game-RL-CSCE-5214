@@ -18,7 +18,7 @@ The project includes:
 
 - Python 3.6 to Python 3.11
 - Virtual environment (recommended)
-- Libraries mostly avilable in requirements.txt (Note, Tkinter has yet to be added to the file)
+- Libraries mostly avilable in requirements.txt
 
 ## Installation
 
@@ -46,7 +46,7 @@ On Unix or MacOS:
 
 3. Install libraries through requriements.txt or like the following:
 
-`pip install numpy gymnasium stable-baselines3 pickle-mixin tk`
+`pip install numpy gymnasium stable-baselines3 pickle-mixin`
 
 
 ## Usage
